@@ -215,7 +215,7 @@ impl Parser {
                         } else if let Some(&call_ptr) = self.procedure_lut.get(token) {
                             // token -> call subrutin
                             self.instructions.push(Instruction::Call(call_ptr));
-                        } else if token.as_bytes()[0].is_ascii_digit() {
+                        } else if token.as_bytes()[0].is_ascii_digit() || token.as_bytes()[0] == b'-' {
                             // Possible number (real or imag).
                             // Imag check --> 4.32j
                             if token.as_bytes().last().unwrap() == &b'j' {
@@ -241,7 +241,7 @@ impl Parser {
                             }
                             num_parser = true;
                         } else {
-                            eprintln!("Invalid command. Please type 'help'.");
+                            eprintln!("Not a number, invalid command. Please type 'help'.");
                         }
                     }
                 } // match
