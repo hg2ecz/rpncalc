@@ -63,9 +63,7 @@ impl Parser {
                     }
                     _ => loc_match = false,
                 }
-                if loc_match {
-                    token_matched = true;
-                }
+                token_matched |= loc_match;
             }
 
             if !token_matched {
@@ -108,9 +106,7 @@ impl Parser {
                         }
                         _ => loc_match = false,
                     }
-                    if loc_match {
-                        token_matched = true;
-                    }
+                    token_matched |= loc_match;
                 }
             } // if !token_matched
 
@@ -250,6 +246,8 @@ impl Parser {
                     }
                 } // match
             } // if !token_matched
+
+            // if the number storeable - does not have imaginary part
             if !num_parser {
                 if let StackType::Double(_) = self.last_number {
                     if !self.instructions.is_empty() {
