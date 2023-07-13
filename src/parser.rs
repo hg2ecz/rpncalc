@@ -215,7 +215,9 @@ impl Parser {
                         } else if let Some(&call_ptr) = self.procedure_lut.get(token) {
                             // token -> call subrutin
                             self.instructions.push(Instruction::Call(call_ptr));
-                        } else if token.as_bytes()[0].is_ascii_digit() || token.as_bytes()[0] == b'-' {
+                        } else if token.as_bytes()[0].is_ascii_digit()
+                            || token.as_bytes()[0] == b'-'
+                        {
                             // Possible number (real or imag).
                             // Imag check --> 4.32j
                             if token.as_bytes().last().unwrap() == &b'j' {
