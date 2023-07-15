@@ -5,14 +5,17 @@ RPN complex calculator. Inspired by the FORTH, gforth and dc commands.
 RPN complex calculator, inspired by the FORTH, gforth and dc commands.
 Cmdline args: -q or --quiet, -f <filename> or --file <filename>, and -h or --help
 
-   Basic example:      10 6 4 - / p                # p as print, 6 - 4 --> 2    10 / 2 = 5
+   Basic example:      10 6 4 - / p                     # p as print, 6 - 4 --> 2    10 / 2 = 5
 
-   Stack operation:    dup drop over rot swap clear dumpstack(ds)
-   Stack <--> Reg:     RNUM save load creg clregs  # registernumber is 8 bit
-   Stack <--> Vector:  VNUM vsave vload and LEN VNUM vreal or LEN VNUM vcplx for create. VNUM is 8 bit.
+   Stack operation:    dup drop over rot swap clear
+   Stack <--> Reg:     RNUM save load creg              # registernumber is 8 bit
+   Stack <--> Vector:  VNUM vsave vload cvec            # VNUM is 8 bit
+   Create a vector:    LEN VNUM vreal or vcplx          # VNUM is 8 bit
+
+   Clear reg and vec:  NUM creg NUM vreg, clregs clvecs # hide on debug
    Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)
 
-   Literal:            3 4j                        # real or complex number
+   Literal:            3 4j                          # real or complex number
    Arithmetic:         + - * / abs
    Rounding:           floor ceil round
    Complex:            real imag r2c

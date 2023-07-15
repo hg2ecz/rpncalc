@@ -137,6 +137,11 @@ impl Parser {
                     let Some(reg) = self.get_reg() else {break};
                     self.instructions.push(Instruction::Vload(reg));
                 }
+                "cvec" => {
+                    let Some(reg) = self.get_reg() else {break};
+                    self.instructions.push(Instruction::Cvec(reg));
+                }
+                "clvecs" => self.instructions.push(Instruction::Clvecs),
                 "dumpvec" | "dv" => self.instructions.push(Instruction::DumpVec),
 
                 // Procedure and loop:

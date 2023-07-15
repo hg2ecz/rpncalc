@@ -21,10 +21,7 @@ pub enum Instruction {
     Rot,       // "rot"
     Swap,      // "swap"
     Clear,     // "clear"
-    Clregs,    // "clregs"
     DumpStack, // "dumpstack" | "ds"
-    DumpReg,   // "dumpreg" | "dr"
-    DumpVec,   // "dumpvec" | "dv"
 
     Add, // "+" | "add"
     Sub, // "-" | "sub"
@@ -72,15 +69,20 @@ pub enum Instruction {
     R2c,  // "r2c"
 
     // Registers
-    Save(u8), // "save" + Reg
-    Load(u8), // "load" + Reg
-    Creg(u8), // "creg" + Reg
+    Save(u8), // RNUM + "save"
+    Load(u8), // RNUM + "load"
+    Creg(u8), // RNUM + "creg"
+    Clregs,   // "clregs"
+    DumpReg,  // "dumpreg" | "dr"
 
     // Vectors
-    Vreal(u8), // "vreal" + Reg
-    Vcplx(u8), // "vcplx" + Reg
-    Vsave(u8), // "vsave" + Reg
-    Vload(u8), // "vload" + Reg
+    Vreal(u8), // VNUM + "vreal"
+    Vcplx(u8), // VNUM + "vcplx"
+    Vsave(u8), // VNUM + "vsave"
+    Vload(u8), // VNUM + "vload"
+    Cvec(u8),  // VNUM + "cvec"
+    Clvecs,    // "clvecs"
+    DumpVec,   // "dumpvec" | "dv"
 
     // Print
     Precision,    // "k" | "precision" => {
@@ -94,16 +96,17 @@ pub fn help() {
     println!("RPN complex calculator, inspired by the FORTH, gforth and dc commands.");
     println!("Cmdline args: -q or --quiet, -f <filename> or --file <filename>, and -h or --help");
     println!();
-    println!("   Basic example:      10 6 4 - / p                # p as print, 6 - 4 --> 2    10 / 2 = 5");
+    println!("   Basic example:      10 6 4 - / p                     # p as print, 6 - 4 --> 2    10 / 2 = 5");
     println!();
-    println!("   Stack operation:    dup drop over rot swap clear dumpstack(ds)");
-    println!("   Stack <--> Reg:     RNUM save load creg clregs  # registernumber is 8 bit");
-    println!(
-        "   Stack <--> Vector:  VNUM vsave vload and LEN VNUM vreal or LEN VNUM vcplx for create. VNUM is 8 bit."
-    );
+    println!("   Stack operation:    dup drop over rot swap clear");
+    println!("   Stack <--> Reg:     RNUM save load creg              # registernumber is 8 bit");
+    println!("   Stack <--> Vector:  VNUM vsave vload cvec            # VNUM is 8 bit");
+    println!("   Create a vector:    LEN VNUM vreal or vcplx          # VNUM is 8 bit");
+    println!();
+    println!("   Clear reg and vec:  NUM creg NUM vreg, clregs clvecs # hide on debug");
     println!("   Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)");
     println!();
-    println!("   Literal:            3 4j                        # real or complex number");
+    println!("   Literal:            3 4j                          # real or complex number");
     println!("   Arithmetic:         + - * / abs");
     println!("   Rounding:           floor ceil round");
     println!("   Complex:            real imag r2c");

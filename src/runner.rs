@@ -108,6 +108,7 @@ impl Runner {
                         self.pc = addr;
                     }
                 }
+
                 // Stack operations
                 Instruction::Dup => {
                     let Some(a) = self.stack.last() else { eprintln!("Stack is empty!"); break; };
@@ -389,7 +390,7 @@ impl Runner {
                     for r in &mut self.registers.iter_mut() {
                         *r = StackType::None;
                     }
-                    eprintln!("All self.registers cleared.");
+                    eprintln!("All self.registers is cleared.");
                 }
                 Instruction::DumpReg => {
                     let mut ok = false;
@@ -454,6 +455,15 @@ impl Runner {
                             self.vectors[regnum as usize].vector[2 * a as usize + 1],
                         )));
                     }
+                }
+                Instruction::Cvec(regnum) => {
+                    self.vectors[regnum as usize].vector.clear();
+                }
+                Instruction::Clvecs => {
+                    for r in &mut self.vectors.iter_mut() {
+                        r.vector.clear();
+                    }
+                    eprintln!("All self.vectors is cleared.");
                 }
                 Instruction::DumpVec => {
                     let mut ok = false;
