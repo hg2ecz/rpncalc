@@ -530,8 +530,9 @@ impl Runner {
             } // match
             self.pc += 1;
         } // while
+          // if breaked, drop the remaining part of the program
         if self.pc < self.prog.len() {
-            self.pc += 1;
+            self.pc = self.prog.len();
         }
     } // fn run
 } // Obj
