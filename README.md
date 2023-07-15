@@ -8,8 +8,8 @@ Cmdline args: -q or --quiet, -f <filename> or --file <filename>, and -h or --hel
    Basic example:      10 6 4 - / p                # p as print, 6 - 4 --> 2    10 / 2 = 5
 
    Stack operation:    dup drop over rot swap clear dumpstack(ds)
-   Stack <--> Reg:     saveX loadX     cregX clregs    # where X a letter
-   Stack <--> Vector:  vsaveX and vloadX, and   LEN vrealX or LEN vcplxX for create.
+   Stack <--> Reg:     RNUM save load creg clregs  # registernumber is 8 bit
+   Stack <--> Vector:  VNUM vsave vload and LEN VNUM vreal or LEN VNUM vcplx for create. VNUM is 8 bit.
    Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)
 
    Literal:            3 4j                        # real or complex number

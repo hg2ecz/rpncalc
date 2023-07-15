@@ -108,66 +108,6 @@ impl Runner {
                         self.pc = addr;
                     }
                 }
-                Instruction::Save(regnum) => {
-                    let Some(x) = self.stack.pop() else { eprintln!("Stack is empty!"); break; };
-                    self.registers[regnum as usize] = x;
-                }
-                Instruction::Load(regnum) => {
-                    self.stack.push(self.registers[regnum as usize]);
-                }
-                Instruction::Creg(regnum) => {
-                    self.registers[regnum as usize] = StackType::None;
-                }
-                Instruction::Vreal(regnum) => {
-                    // vector create complex - with LEN
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    self.vectors[regnum as usize].data_type = Type::Double;
-                    self.vectors[regnum as usize].vector = vec![0.0; a as usize];
-                }
-                Instruction::Vcplx(regnum) => {
-                    // vector create complex - with LEN
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    self.vectors[regnum as usize].data_type = Type::Complex;
-                    self.vectors[regnum as usize].vector = vec![0.0; 2 * a as usize];
-                }
-                Instruction::Vsave(regnum) => {
-                    // vsaveX
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = self.stack.pop() else {eprintln!("Stack empty"); break};
-                    match b {
-                        StackType::Double(bb) => {
-                            if self.vectors[regnum as usize].data_type != Type::Double {
-                                eprintln!("Type error: vector is a real vector.");
-                                break;
-                            }
-                            self.vectors[regnum as usize].vector[a as usize] = bb
-                        }
-                        StackType::Complex(bb) => {
-                            if self.vectors[regnum as usize].data_type != Type::Complex {
-                                eprintln!("Type error: vector is a complex vector.");
-                                break;
-                            }
-                            self.vectors[regnum as usize].vector[2 * a as usize] = bb.re;
-                            self.vectors[regnum as usize].vector[2 * a as usize + 1] = bb.im;
-                        }
-                        StackType::None => (),
-                    }
-                }
-                Instruction::Vload(regnum) => {
-                    // vloadX
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    if self.vectors[regnum as usize].data_type == Type::Double {
-                        self.stack.push(StackType::Double(
-                            self.vectors[regnum as usize].vector[a as usize],
-                        ));
-                    } else {
-                        // Complex
-                        self.stack.push(StackType::Complex(Complex::new(
-                            self.vectors[regnum as usize].vector[2 * a as usize],
-                            self.vectors[regnum as usize].vector[2 * a as usize + 1],
-                        )));
-                    }
-                }
                 // Stack operations
                 Instruction::Dup => {
                     let Some(a) = self.stack.last() else { eprintln!("Stack is empty!"); break; };
@@ -207,46 +147,8 @@ impl Runner {
                 Instruction::Clear => {
                     self.stack.clear();
                 }
-                Instruction::Clregs => {
-                    for r in &mut self.registers.iter_mut() {
-                        *r = StackType::None;
-                    }
-                    eprintln!("All self.registers cleared.");
-                }
                 Instruction::DumpStack => {
                     println!("Stack: {:?}", self.stack);
-                }
-                Instruction::DumpReg => {
-                    let mut ok = false;
-                    for (i, v) in self.registers.iter().enumerate() {
-                        if *v != StackType::None {
-                            if let Some(ch) = std::char::from_u32(i as u32) {
-                                println!("{ch}: {v:?}");
-                                ok = true;
-                            }
-                        }
-                    }
-                    if !ok {
-                        println!("Not found any defined self.registers. Use saveX for save.")
-                    }
-                }
-                Instruction::DumpVec => {
-                    let mut ok = false;
-                    for i in 0..128 {
-                        if !self.vectors[i].vector.is_empty() {
-                            let mut veclen = self.vectors[i].vector.len();
-                            if self.vectors[i].data_type == Type::Complex {
-                                veclen /= 2;
-                            }
-                            if let Some(ch) = std::char::from_u32(i as u32) {
-                                println!("{ch}: {:?}, len: {veclen}", self.vectors[i].data_type,);
-                                ok = true;
-                            }
-                        }
-                    }
-                    if !ok {
-                        println!("Not found any defined vectors. Use LEN vrealX or LEN vcplxX for create of real or complex vector.")
-                    }
                 }
 
                 // Basic arithmetic
@@ -470,6 +372,104 @@ impl Runner {
                     let (Some(a), Some(b)) = (self.stack.pop(), self.stack.pop()) else {eprintln!("Stack is empty!");break};
                     let (StackType::Double(a), StackType::Double(b)) = (a, b) else {eprintln!("Numbers are not real!"); break};
                     self.stack.push(StackType::Complex(Complex::new(b, a)));
+                }
+
+                // Registers
+                Instruction::Save(regnum) => {
+                    let Some(x) = self.stack.pop() else { eprintln!("Stack is empty!"); break; };
+                    self.registers[regnum as usize] = x;
+                }
+                Instruction::Load(regnum) => {
+                    self.stack.push(self.registers[regnum as usize]);
+                }
+                Instruction::Creg(regnum) => {
+                    self.registers[regnum as usize] = StackType::None;
+                }
+                Instruction::Clregs => {
+                    for r in &mut self.registers.iter_mut() {
+                        *r = StackType::None;
+                    }
+                    eprintln!("All self.registers cleared.");
+                }
+                Instruction::DumpReg => {
+                    let mut ok = false;
+                    for (i, v) in self.registers.iter().enumerate() {
+                        if *v != StackType::None {
+                            println!("Reg {i:3}: {v:?}");
+                            ok = true;
+                        }
+                    }
+                    if !ok {
+                        println!("Not found any defined self.registers. Use saveX for save.")
+                    }
+                }
+
+                // Vectors
+                Instruction::Vreal(regnum) => {
+                    // vector create complex - with LEN
+                    let Some(a) = get_double(&mut self.stack) else {break};
+                    self.vectors[regnum as usize].data_type = Type::Double;
+                    self.vectors[regnum as usize].vector = vec![0.0; a as usize];
+                }
+                Instruction::Vcplx(regnum) => {
+                    // vector create complex - with LEN
+                    let Some(a) = get_double(&mut self.stack) else {break};
+                    self.vectors[regnum as usize].data_type = Type::Complex;
+                    self.vectors[regnum as usize].vector = vec![0.0; 2 * a as usize];
+                }
+                Instruction::Vsave(regnum) => {
+                    // vsaveX
+                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(b) = self.stack.pop() else {eprintln!("Stack empty"); break};
+                    match b {
+                        StackType::Double(bb) => {
+                            if self.vectors[regnum as usize].data_type != Type::Double {
+                                eprintln!("Type error: vector is a real vector.");
+                                break;
+                            }
+                            self.vectors[regnum as usize].vector[a as usize] = bb
+                        }
+                        StackType::Complex(bb) => {
+                            if self.vectors[regnum as usize].data_type != Type::Complex {
+                                eprintln!("Type error: vector is a complex vector.");
+                                break;
+                            }
+                            self.vectors[regnum as usize].vector[2 * a as usize] = bb.re;
+                            self.vectors[regnum as usize].vector[2 * a as usize + 1] = bb.im;
+                        }
+                        StackType::None => (),
+                    }
+                }
+                Instruction::Vload(regnum) => {
+                    // vloadX
+                    let Some(a) = get_double(&mut self.stack) else {break};
+                    if self.vectors[regnum as usize].data_type == Type::Double {
+                        self.stack.push(StackType::Double(
+                            self.vectors[regnum as usize].vector[a as usize],
+                        ));
+                    } else {
+                        // Complex
+                        self.stack.push(StackType::Complex(Complex::new(
+                            self.vectors[regnum as usize].vector[2 * a as usize],
+                            self.vectors[regnum as usize].vector[2 * a as usize + 1],
+                        )));
+                    }
+                }
+                Instruction::DumpVec => {
+                    let mut ok = false;
+                    for (i, v) in self.vectors.iter().enumerate() {
+                        if !v.vector.is_empty() {
+                            let mut vlen = v.vector.len();
+                            if v.data_type == Type::Complex {
+                                vlen /= 2;
+                            }
+                            println!("Vec {i:3}: {:?}, len: {vlen}", v.data_type);
+                            ok = true;
+                        }
+                    }
+                    if !ok {
+                        println!("Not found any defined vectors. Use LEN vrealX or LEN vcplxX for create of real or complex vector.")
+                    }
                 }
 
                 // Print and related

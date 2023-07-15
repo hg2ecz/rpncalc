@@ -13,15 +13,7 @@ pub enum Instruction {
     Literal(StackType),
     Call(usize), // ":"
     Ret,         // ";"
-    // "[", storing PC for JNZ
-    Jnz(usize), // "]", jump back
-    Save(u8),   // "save" + Reg
-    Load(u8),   // "load" + Reg
-    Creg(u8),   // "creg" + Reg
-    Vreal(u8),  // "vreal" + Reg
-    Vcplx(u8),  // "vcplx" + Reg
-    Vsave(u8),  // "vsave" + Reg
-    Vload(u8),  // "vload" + Reg
+    Jnz(usize),  // "]", jump back
 
     Dup,       // "dup"
     Drop,      // "drop"
@@ -75,9 +67,22 @@ pub enum Instruction {
     Le,    // "<="
     Eq,    // "="
 
-    Real,         // "real"
-    Imag,         // "imag"
-    R2c,          // "r2c"
+    Real, // "real"
+    Imag, // "imag"
+    R2c,  // "r2c"
+
+    // Registers
+    Save(u8), // "save" + Reg
+    Load(u8), // "load" + Reg
+    Creg(u8), // "creg" + Reg
+
+    // Vectors
+    Vreal(u8), // "vreal" + Reg
+    Vcplx(u8), // "vcplx" + Reg
+    Vsave(u8), // "vsave" + Reg
+    Vload(u8), // "vload" + Reg
+
+    // Print
     Precision,    // "k" | "precision" => {
     GetPrecision, // "K"
     Print,        // "p" | "print"
@@ -92,9 +97,9 @@ pub fn help() {
     println!("   Basic example:      10 6 4 - / p                # p as print, 6 - 4 --> 2    10 / 2 = 5");
     println!();
     println!("   Stack operation:    dup drop over rot swap clear dumpstack(ds)");
-    println!("   Stack <--> Reg:     saveX loadX     cregX clregs    # where X a letter");
+    println!("   Stack <--> Reg:     RNUM save load creg clregs  # registernumber is 8 bit");
     println!(
-        "   Stack <--> Vector:  vsaveX and vloadX, and   LEN vrealX or LEN vcplxX for create."
+        "   Stack <--> Vector:  VNUM vsave vload and LEN VNUM vreal or LEN VNUM vcplx for create. VNUM is 8 bit."
     );
     println!("   Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)");
     println!();
