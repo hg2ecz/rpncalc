@@ -429,7 +429,7 @@ impl Runner {
                         }
                     }
                     if !ok {
-                        println!("Not found any defined self.registers. Use saveX for save.")
+                        println!("Not found any defined registers. Use RNUM save for save.")
                     }
                 }
 
@@ -506,7 +506,7 @@ impl Runner {
                         }
                     }
                     if !ok {
-                        println!("Not found any defined vectors. Use LEN vrealX or LEN vcplxX for create of real or complex vector.")
+                        println!("Not found any defined vectors. Use LEN VNUM vreal or LEN VNUM vcplx for create of real or complex vector.")
                     }
                 }
 
