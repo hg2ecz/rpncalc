@@ -1,5 +1,6 @@
 use crate::instructions::{Instruction, StackType};
 use num_complex::Complex;
+use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc};
 
 #[derive(Debug, PartialEq)]
 enum Type {
@@ -23,10 +24,19 @@ pub struct Runner {
     registers: [StackType; 128],
     vectors: Vec<VectorType>,
     verbose: bool,
+    stopped: Arc<AtomicBool>,
 }
 
 impl Runner {
     pub fn new(verbose: bool) -> Self {
+        let stopped = Arc::new(AtomicBool::new(false));
+        let r = stopped.clone();
+
+        ctrlc::set_handler(move || {
+            r.store(true, Ordering::SeqCst);
+        })
+        .expect("Error setting Ctrl-C handler");
+
         let mut vectors = Vec::new();
         for _ in 0..128 {
             vectors.push(VectorType {
@@ -43,6 +53,7 @@ impl Runner {
             registers: [StackType::None; 128],
             vectors,
             verbose,
+            stopped,
         }
     }
 
@@ -56,6 +67,7 @@ impl Runner {
             self.prog.push(*i);
         }
         self.pc = self.prog.len();
+        self.stopped.store(false, Ordering::SeqCst);
     }
 
     // Internal func
@@ -103,9 +115,16 @@ impl Runner {
                     self.pc = addr;
                     continue; // don't increment PC
                 }
-                Instruction::Ret => self.pc = self.ret_stack.pop().unwrap(), // Error handling!
+                Instruction::Ret => {
+                    let Some(pc) = self.ret_stack.pop() else { eprintln!("Return stack is empty!"); break; };
+                    self.pc = pc;
+                }
                 Instruction::Jnz(addr) => {
-                    if self.stack.pop().unwrap() != StackType::Double(0.0) {
+                    let Some(a) = self.stack.pop() else { eprintln!("Stack is empty!"); break; };
+                    if self.stopped.load(Ordering::SeqCst) {
+                        self.stopped.store(false, Ordering::SeqCst);
+                        eprintln!("Ctrl-C ... stop");
+                    } else if a != StackType::Double(0.0) {
                         self.pc = addr;
                     }
                 }
@@ -512,5 +531,8 @@ impl Runner {
             } // match
             self.pc += 1;
         } // while
+        if self.pc < self.prog.len() {
+            self.pc += 1;
+        }
     } // fn run
 } // Obj
