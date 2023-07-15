@@ -123,6 +123,7 @@ impl Runner {
                     let Some(a) = self.stack.pop() else { eprintln!("Stack is empty!"); break; };
                     if self.stopped.load(Ordering::SeqCst) {
                         eprintln!("Ctrl-C ... stop");
+                        break;
                     } else if a != StackType::Double(0.0) {
                         self.pc = addr;
                     }
