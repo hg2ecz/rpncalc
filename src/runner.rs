@@ -1,12 +1,6 @@
 use crate::instructions::{Instruction, StackType};
 use num_complex::Complex;
 
-fn get_double(stack: &mut Vec<StackType>) -> Option<f64> {
-    let Some(a) = stack.pop() else {eprintln!("Stack is empty!");return None};
-    let StackType::Double(a) = a else {eprintln!("Get double: type error (Complex)");return None};
-    Some(a)
-}
-
 #[derive(Debug, PartialEq)]
 enum Type {
     Double,
@@ -17,29 +11,6 @@ enum Type {
 struct VectorType {
     data_type: Type,
     vector: Vec<f64>,
-}
-
-// Return: Real:Real and Complex:Complex from any pair
-fn get_samenum(stack: &mut Vec<StackType>) -> Option<(StackType, StackType)> {
-    let (Some(a), Some(b)) = (stack.pop(), stack.pop()) else {eprintln!("Stack empty!"); return None};
-    if let (StackType::Double(da), StackType::Double(db)) = (a, b) {
-        Some((StackType::Double(da), StackType::Double(db)))
-    } else if let (StackType::Complex(da), StackType::Complex(db)) = (a, b) {
-        Some((StackType::Complex(da), StackType::Complex(db)))
-    } else if let (StackType::Double(da), StackType::Complex(db)) = (a, b) {
-        Some((
-            StackType::Complex(Complex::new(da, 0.0)),
-            StackType::Complex(db),
-        ))
-    } else if let (StackType::Complex(da), StackType::Double(db)) = (a, b) {
-        Some((
-            StackType::Complex(da),
-            StackType::Complex(Complex::new(db, 0.0)),
-        ))
-    } else {
-        eprintln!("Not a number!");
-        None
-    }
 }
 
 #[derive(Debug)]
@@ -85,6 +56,36 @@ impl Runner {
             self.prog.push(*i);
         }
         self.pc = self.prog.len();
+    }
+
+    // Internal func
+    fn get_double(&mut self) -> Option<f64> {
+        let Some(a) = self.stack.pop() else {eprintln!("Stack is empty!");return None};
+        let StackType::Double(a) = a else {eprintln!("Get double: type error (Complex)");return None};
+        Some(a)
+    }
+
+    // Internal func, return: Real:Real or Complex:Complex from any pair
+    fn get_samenum(&mut self) -> Option<(StackType, StackType)> {
+        let (Some(a), Some(b)) = (self.stack.pop(), self.stack.pop()) else {eprintln!("Stack empty!"); return None};
+        if let (StackType::Double(da), StackType::Double(db)) = (a, b) {
+            Some((StackType::Double(da), StackType::Double(db)))
+        } else if let (StackType::Complex(da), StackType::Complex(db)) = (a, b) {
+            Some((StackType::Complex(da), StackType::Complex(db)))
+        } else if let (StackType::Double(da), StackType::Complex(db)) = (a, b) {
+            Some((
+                StackType::Complex(Complex::new(da, 0.0)),
+                StackType::Complex(db),
+            ))
+        } else if let (StackType::Complex(da), StackType::Double(db)) = (a, b) {
+            Some((
+                StackType::Complex(da),
+                StackType::Complex(Complex::new(db, 0.0)),
+            ))
+        } else {
+            eprintln!("Not a number!");
+            None
+        }
     }
 
     pub fn run(&mut self, add_instr: &[Instruction]) {
@@ -154,7 +155,7 @@ impl Runner {
 
                 // Basic arithmetic
                 Instruction::Add => {
-                    let Some((a, b)) = get_samenum(&mut self.stack) else {break};
+                    let Some((a, b)) = self.get_samenum() else {break};
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
                         self.stack.push(StackType::Double(b + a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
@@ -162,7 +163,7 @@ impl Runner {
                     }
                 }
                 Instruction::Sub => {
-                    let Some((a, b)) = get_samenum(&mut self.stack) else {break};
+                    let Some((a, b)) = self.get_samenum() else {break};
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
                         self.stack.push(StackType::Double(b - a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
@@ -170,7 +171,7 @@ impl Runner {
                     }
                 }
                 Instruction::Mul => {
-                    let Some((a, b)) = get_samenum(&mut self.stack) else {break};
+                    let Some((a, b)) = self.get_samenum() else {break};
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
                         self.stack.push(StackType::Double(b * a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
@@ -178,7 +179,7 @@ impl Runner {
                     }
                 }
                 Instruction::Div => {
-                    let Some((a, b)) = get_samenum(&mut self.stack) else {break};
+                    let Some((a, b)) = self.get_samenum() else {break};
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
                         self.stack.push(StackType::Double(b / a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
@@ -186,37 +187,37 @@ impl Runner {
                     }
                 }
                 Instruction::And => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack
                         .push(StackType::Double((b as u32 & a as u32) as f64));
                 }
                 Instruction::Or => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack
                         .push(StackType::Double((b as u32 | a as u32) as f64));
                 }
                 Instruction::Xor => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack
                         .push(StackType::Double((b as u32 ^ a as u32) as f64));
                 }
                 Instruction::Neg => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack
                         .push(StackType::Double((a as u32 ^ 0xffff_ffff) as f64));
                 }
                 Instruction::Shl => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack
                         .push(StackType::Double(((b as u32) << a as u32) as f64));
                 }
                 Instruction::Shr => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack
                         .push(StackType::Double(((b as u32) >> a as u32) as f64));
                 }
@@ -229,132 +230,140 @@ impl Runner {
                     }
                 }
                 Instruction::Floor => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.floor()));
                 }
                 Instruction::Ceil => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.ceil()));
                 }
                 Instruction::Round => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.round()));
                 }
 
                 // Trigonometric function
                 Instruction::CosR => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.cos()));
                 }
                 Instruction::SinR => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.sin()));
                 }
                 Instruction::TanR => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.tan()));
                 }
                 Instruction::CosD => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     let a = a / 180. * std::f64::consts::PI;
                     self.stack.push(StackType::Double(a.cos()));
                 }
                 Instruction::SinD => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     let a = a / 180. * std::f64::consts::PI;
                     self.stack.push(StackType::Double(a.sin()));
                 }
                 Instruction::TanD => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     let a = a / 180. * std::f64::consts::PI;
                     self.stack.push(StackType::Double(a.tan()));
                 }
                 Instruction::AcosR => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.acos()));
                 }
                 Instruction::AsinR => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.asin()));
                 }
                 Instruction::AtanR => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.atan()));
                 }
                 Instruction::AcosD => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     let a = a.acos() * 180. / std::f64::consts::PI;
                     self.stack.push(StackType::Double(a));
                 }
                 Instruction::AsinD => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     let a = a.asin() * 180. / std::f64::consts::PI;
                     self.stack.push(StackType::Double(a));
                 }
                 Instruction::AtanD => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     let a = a.atan() * 180. / std::f64::consts::PI;
                     self.stack.push(StackType::Double(a));
                 }
                 // Logarithm and exponential
                 Instruction::Loge => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    self.stack.push(StackType::Double(a.ln()));
+                    let Some(a) = self.stack.pop() else {eprintln!("Stack is empty!");break};
+                    match a {
+                        StackType::Double(aa) => self.stack.push(StackType::Double(aa.ln())),
+                        StackType::Complex(aa) => self.stack.push(StackType::Complex(aa.ln())),
+                        _ => eprintln!("Loge type error."),
+                    }
                 }
                 Instruction::Log2 => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.log2()));
                 }
                 Instruction::Log10 => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.log10()));
                 }
                 Instruction::Logx => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack.push(StackType::Double(b.ln() / a.ln()));
                 }
 
                 Instruction::Expe => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    self.stack.push(StackType::Double(a.exp()));
+                    let Some(a) = self.stack.pop() else {eprintln!("Stack is empty!");break};
+                    match a {
+                        StackType::Double(aa) => self.stack.push(StackType::Double(aa.exp())),
+                        StackType::Complex(aa) => self.stack.push(StackType::Complex(aa.exp())),
+                        _ => eprintln!("Exp type error."),
+                    }
                 }
                 Instruction::Exp2 => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(a.exp2()));
                 }
                 Instruction::Exp10 => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.stack.push(StackType::Double(10_f64.powf(a)));
                 }
                 Instruction::Expx => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack.push(StackType::Double(b.powf(a)));
                 }
                 Instruction::Gt => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack.push(StackType::Double((b > a) as i32 as f64));
                 }
                 Instruction::Lt => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack.push(StackType::Double((b < a) as i32 as f64));
                 }
                 Instruction::Ge => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack.push(StackType::Double((b >= a) as i32 as f64));
                 }
                 Instruction::Le => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack.push(StackType::Double((b <= a) as i32 as f64));
                 }
                 Instruction::Eq => {
-                    let Some(a) = get_double(&mut self.stack) else {break};
-                    let Some(b) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
+                    let Some(b) = self.get_double() else {break};
                     self.stack.push(StackType::Double((b == a) as i32 as f64));
                 }
 
@@ -408,19 +417,19 @@ impl Runner {
                 // Vectors
                 Instruction::Vreal(regnum) => {
                     // vector create complex - with LEN
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.vectors[regnum as usize].data_type = Type::Double;
                     self.vectors[regnum as usize].vector = vec![0.0; a as usize];
                 }
                 Instruction::Vcplx(regnum) => {
                     // vector create complex - with LEN
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     self.vectors[regnum as usize].data_type = Type::Complex;
                     self.vectors[regnum as usize].vector = vec![0.0; 2 * a as usize];
                 }
                 Instruction::Vsave(regnum) => {
                     // vsaveX
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     let Some(b) = self.stack.pop() else {eprintln!("Stack empty"); break};
                     match b {
                         StackType::Double(bb) => {
@@ -443,7 +452,7 @@ impl Runner {
                 }
                 Instruction::Vload(regnum) => {
                     // vloadX
-                    let Some(a) = get_double(&mut self.stack) else {break};
+                    let Some(a) = self.get_double() else {break};
                     if self.vectors[regnum as usize].data_type == Type::Double {
                         self.stack.push(StackType::Double(
                             self.vectors[regnum as usize].vector[a as usize],
