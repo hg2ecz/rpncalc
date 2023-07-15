@@ -67,7 +67,6 @@ impl Runner {
             self.prog.push(*i);
         }
         self.pc = self.prog.len();
-        self.stopped.store(false, Ordering::SeqCst);
     }
 
     // Internal func
@@ -101,6 +100,7 @@ impl Runner {
     }
 
     pub fn run(&mut self, add_instr: &[Instruction]) {
+        self.stopped.store(false, Ordering::SeqCst);
         for i in add_instr {
             self.prog.push(*i);
         }
