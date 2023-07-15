@@ -122,7 +122,6 @@ impl Runner {
                 Instruction::Jnz(addr) => {
                     let Some(a) = self.stack.pop() else { eprintln!("Stack is empty!"); break; };
                     if self.stopped.load(Ordering::SeqCst) {
-                        self.stopped.store(false, Ordering::SeqCst);
                         eprintln!("Ctrl-C ... stop");
                     } else if a != StackType::Double(0.0) {
                         self.pc = addr;
