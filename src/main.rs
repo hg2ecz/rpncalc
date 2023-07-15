@@ -1,11 +1,8 @@
 use getargs::{Opt, Options};
-//use num_complex::Complex;
-//use std::collections::HashMap;
 use std::env::args;
 use std::fs::read_to_string;
 use std::io::{self, BufRead};
 
-//mod instructions;
 mod instructions;
 mod parser;
 mod runner;
