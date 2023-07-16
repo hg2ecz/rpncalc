@@ -109,15 +109,17 @@ impl Runner {
             if self.verbose {
                 println!("Debug: PC: {} Instr: {:?}", self.pc, self.prog[self.pc]);
             }
-            if self.stack.len() >= MAX_STACK {
-                eprintln!(
-                    "Stack is FULL ({} element)! Please clear it.",
-                    self.stack.len()
-                );
-                self.pc = self.prog.len();
-            }
             match self.prog[self.pc] {
-                Instruction::Literal(lit) => self.stack.push(lit),
+                Instruction::Literal(lit) => {
+                    self.stack.push(lit);
+                    if self.stack.len() >= MAX_STACK {
+                        eprintln!(
+                            "Stack is FULL ({} element)! Please clear it.",
+                            self.stack.len()
+                        );
+                        break;
+                    }
+                }
                 Instruction::Call(addr) => {
                     self.ret_stack.push(self.pc);
                     self.pc = addr;
@@ -142,6 +144,13 @@ impl Runner {
                 Instruction::Dup => {
                     let Some(a) = self.stack.last() else { eprintln!("Stack is empty!"); break; };
                     self.stack.push(*a);
+                    if self.stack.len() >= MAX_STACK {
+                        eprintln!(
+                            "CStack is FULL ({} element)! Please clear it.",
+                            self.stack.len()
+                        );
+                        self.pc = self.prog.len();
+                    }
                 }
                 Instruction::Drop => {
                     if self.stack.pop().is_none() {
@@ -419,6 +428,13 @@ impl Runner {
                 }
                 Instruction::Load(regnum) => {
                     self.stack.push(self.registers[regnum as usize]);
+                    if self.stack.len() >= MAX_STACK {
+                        eprintln!(
+                            "Stack is FULL ({} element)! Please clear it.",
+                            self.stack.len()
+                        );
+                        break;
+                    }
                 }
                 Instruction::Creg(regnum) => {
                     self.registers[regnum as usize] = StackType::None;
@@ -491,6 +507,13 @@ impl Runner {
                             self.vectors[regnum as usize].vector[2 * a as usize],
                             self.vectors[regnum as usize].vector[2 * a as usize + 1],
                         )));
+                    }
+                    if self.stack.len() >= MAX_STACK {
+                        eprintln!(
+                            "Stack is FULL ({} element)! Please clear it.",
+                            self.stack.len()
+                        );
+                        break;
                     }
                 }
                 Instruction::Cvec(regnum) => {
