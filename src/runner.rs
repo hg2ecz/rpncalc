@@ -21,7 +21,7 @@ pub struct Runner {
     pc: usize,
     stack: Vec<StackType>,
     ret_stack: Vec<usize>,
-    registers: [StackType; 128],
+    registers: [StackType; 256],
     vectors: Vec<VectorType>,
     verbose: bool,
     stopped: Arc<AtomicBool>,
@@ -38,7 +38,7 @@ impl Runner {
         .expect("Error setting Ctrl-C handler");
 
         let mut vectors = Vec::new();
-        for _ in 0..128 {
+        for _ in 0..256 {
             vectors.push(VectorType {
                 data_type: Type::Double,
                 vector: Vec::new(),
@@ -50,7 +50,7 @@ impl Runner {
             pc: 0,
             stack: Vec::new(),
             ret_stack: Vec::new(),
-            registers: [StackType::None; 128],
+            registers: [StackType::None; 256],
             vectors,
             verbose,
             stopped,
