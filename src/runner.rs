@@ -2,6 +2,8 @@ use crate::instructions::{Instruction, StackType};
 use num_complex::Complex;
 use std::sync::{atomic::AtomicBool, atomic::Ordering, Arc};
 
+const MAX_STACK: usize = 1_000_000;
+
 #[derive(Debug, PartialEq)]
 enum Type {
     Double,
@@ -61,7 +63,7 @@ impl Runner {
         self.prog.len()
     }
 
-    // add procedure, without running
+    // add procedure, without running. For procedures.
     pub fn add_instr(&mut self, add_instr: &[Instruction]) {
         for i in add_instr {
             self.prog.push(*i);
@@ -100,13 +102,19 @@ impl Runner {
     }
 
     pub fn run(&mut self, add_instr: &[Instruction]) {
-        self.stopped.store(false, Ordering::SeqCst);
         for i in add_instr {
             self.prog.push(*i);
         }
         while self.pc < self.prog.len() {
             if self.verbose {
                 println!("Debug: PC: {} Instr: {:?}", self.pc, self.prog[self.pc]);
+            }
+            if self.stack.len() >= MAX_STACK {
+                eprintln!(
+                    "Stack is FULL ({} element)! Please clear it.",
+                    self.stack.len()
+                );
+                self.pc = self.prog.len();
             }
             match self.prog[self.pc] {
                 Instruction::Literal(lit) => self.stack.push(lit),
@@ -122,6 +130,7 @@ impl Runner {
                 Instruction::Jnz(addr) => {
                     let Some(a) = self.stack.pop() else { eprintln!("Stack is empty!"); break; };
                     if self.stopped.load(Ordering::SeqCst) {
+                        self.stopped.store(false, Ordering::SeqCst);
                         eprintln!("Ctrl-C ... stop");
                         break;
                     } else if a != StackType::Double(0.0) {
