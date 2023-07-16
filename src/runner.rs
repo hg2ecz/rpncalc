@@ -146,10 +146,10 @@ impl Runner {
                     self.stack.push(*a);
                     if self.stack.len() >= MAX_STACK {
                         eprintln!(
-                            "CStack is FULL ({} element)! Please clear it.",
+                            "Stack is FULL ({} element)! Please clear it.",
                             self.stack.len()
                         );
-                        self.pc = self.prog.len();
+                        break;
                     }
                 }
                 Instruction::Drop => {
