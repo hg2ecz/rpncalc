@@ -28,7 +28,10 @@ impl Parser {
     }
 
     fn get_reg(&mut self) -> Option<u8> {
-        let StackType::Double(a) = self.last_number else {eprintln!("Register number needed before this instruction."); return None};
+        let StackType::Double(a) = self.last_number else {
+            eprintln!("Register number needed before this instruction.");
+            return None;
+        };
         self.last_number = StackType::None;
         Some(a as u8)
     }
@@ -106,15 +109,15 @@ impl Parser {
 
                 // Register
                 "save" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Save(reg));
                 }
                 "load" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Load(reg));
                 }
                 "creg" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Creg(reg));
                 }
                 "clregs" => self.instructions.push(Instruction::Clregs),
@@ -122,23 +125,23 @@ impl Parser {
 
                 // Vector
                 "vreal" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Vreal(reg));
                 }
                 "vcplx" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Vcplx(reg));
                 }
                 "vsave" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Vsave(reg));
                 }
                 "vload" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Vload(reg));
                 }
                 "cvec" => {
-                    let Some(reg) = self.get_reg() else {break};
+                    let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Cvec(reg));
                 }
                 "clvecs" => self.instructions.push(Instruction::Clvecs),
@@ -185,7 +188,10 @@ impl Parser {
                         // Imag check --> 4.32j
                         if token.as_bytes().last().unwrap() == &b'j' {
                             let t2 = &token[0..token.len() - 1];
-                            let Ok(imag) = t2.parse::<f64>() else {eprintln!("Number error");break};
+                            let Ok(imag) = t2.parse::<f64>() else {
+                                eprintln!("Number error");
+                                break;
+                            };
                             // if prevous was a normal Double, it is the real part of complex.
                             let cmplx = if let StackType::Double(a) = self.last_number {
                                 Complex::new(a, imag)
@@ -201,7 +207,10 @@ impl Parser {
                                 self.instructions
                                     .push(Instruction::Literal(StackType::Double(a)));
                             }
-                            let Ok(number) = token.parse::<f64>() else {eprintln!("Number error");break};
+                            let Ok(number) = token.parse::<f64>() else {
+                                eprintln!("Number error");
+                                break;
+                            };
                             self.last_number = StackType::Double(number);
                             last_command_not_parse_double = false;
                         }

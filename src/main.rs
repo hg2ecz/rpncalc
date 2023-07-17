@@ -26,7 +26,9 @@ fn get_args() -> (Vec<String>, bool) {
             Opt::Short('q') | Opt::Long("quiet") => (),
 
             Opt::Short('f') | Opt::Long("file") => {
-                let Ok(fname) = opts.value() else { panic!("No filename!"); };
+                let Ok(fname) = opts.value() else {
+                    panic!("No filename!");
+                };
                 filenames.push(fname.to_string());
             }
 
