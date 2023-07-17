@@ -18,7 +18,7 @@ struct VectorType {
 
 #[derive(Debug)]
 pub struct Runner {
-    precision: usize,
+    fractionaldigit: usize,
     prog: Vec<Instruction>,
     pc: usize,
     stack: Vec<StackType>,
@@ -47,7 +47,7 @@ impl Runner {
             })
         }
         Runner {
-            precision: 17,
+            fractionaldigit: 0,
             prog: vec![],
             pc: 0,
             stack: Vec::new(),
@@ -602,23 +602,25 @@ impl Runner {
                 }
 
                 // Print and related
-                Instruction::Precision => {
+                Instruction::FractionalDigit => {
                     let Some(StackType::Double(a)) = self.stack.pop() else {
-                        eprintln!("Precision error");
+                        eprintln!("FractionalDigit");
                         break;
                     };
                     if a <= 17.0 {
-                        self.precision = a as usize;
+                        self.fractionaldigit = a as usize;
                     }
                 }
-                Instruction::GetPrecision => println!("Precision: {}", self.precision),
-
                 Instruction::Print => {
                     let Some(a) = self.stack.last() else {
                         eprintln!("Stack is empty.");
                         break;
                     };
-                    println!("{a:.*?}", self.precision);
+                    if self.fractionaldigit > 0 {
+                        println!("{a:.*?}", self.fractionaldigit);
+                    } else {
+                        println!("{a:?}");
+                    }
                 }
 
                 Instruction::Quit => {

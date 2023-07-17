@@ -7,8 +7,8 @@ pub struct Parser {
     verbose: bool,
     runner: Runner,
     instructions: Vec<Instruction>,
-    last_number: StackType,                // for real, imag
-    procedure_lut: HashMap<String, usize>, // for the parser
+    last_number: StackType,                          // for real, imag
+    procedure_lut: HashMap<String, (usize, String)>, // for the parser and print description
     procedure_state: u8,
     loop_addr: Vec<usize>,
 }
@@ -103,8 +103,7 @@ impl Parser {
                 "r2c" => self.instructions.push(Instruction::R2c),
 
                 // Print and related
-                "k" | "precision" => self.instructions.push(Instruction::Precision),
-                "K" => self.instructions.push(Instruction::GetPrecision),
+                "frdigit" => self.instructions.push(Instruction::FractionalDigit),
                 "p" | "print" => self.instructions.push(Instruction::Print),
 
                 // Register
@@ -159,6 +158,11 @@ impl Parser {
                     self.instructions.clear();
                     self.procedure_state = 0;
                 }
+                "dumpsr" | "dsr" => {
+                    for p in &self.procedure_lut {
+                        println!("Subroutine   {}", p.1 .1);
+                    }
+                }
                 "[" => self
                     .loop_addr
                     .push(self.runner.get_proglen() + self.instructions.len()),
@@ -177,12 +181,15 @@ impl Parser {
                     if self.procedure_state == 1 {
                         self.procedure_lut.insert(
                             token.to_string(),
-                            self.runner.get_proglen() + self.instructions.len(),
+                            (
+                                self.runner.get_proglen() + self.instructions.len(),
+                                line.to_string(),
+                            ),
                         );
                         self.procedure_state = 2;
-                    } else if let Some(&call_ptr) = self.procedure_lut.get(token) {
+                    } else if let Some((call_ptr, _description)) = self.procedure_lut.get(token) {
                         // token -> call subrutin
-                        self.instructions.push(Instruction::Call(call_ptr));
+                        self.instructions.push(Instruction::Call(*call_ptr));
                     } else if token.as_bytes()[0].is_ascii_digit() || token.as_bytes()[0] == b'-' {
                         // Possible number (real or imag).
                         // Imag check --> 4.32j

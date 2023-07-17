@@ -85,9 +85,8 @@ pub enum Instruction {
     DumpVec,   // "dumpvec" | "dv"
 
     // Print
-    Precision,    // "k" | "precision" => {
-    GetPrecision, // "K"
-    Print,        // "p" | "print"
+    FractionalDigit, // "frdigit" | "precision" => {
+    Print,           // "p" | "print"
     // Help,      // help() called in parser,
     Quit, // "quit" | "bye" | "exit" | "q"
 }
@@ -106,7 +105,7 @@ pub fn help() {
     println!("   Clear reg and vec:  NUM creg NUM vreg, clregs clvecs # hide on debug");
     println!("   Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)");
     println!();
-    println!("   Literal:            3 4j                          # real or complex number");
+    println!("   Literal:            3 4j                             # real or complex number");
     println!("   Arithmetic:         + - * / abs");
     println!("   Rounding:           floor ceil round");
     println!("   Complex:            real imag r2c");
@@ -116,15 +115,18 @@ pub fn help() {
     println!("   Trigonometric(deg): sind, cosd, tand, asind, acosd, atand");
     println!("   Logarithm:          loge expe log10 exp10 log2 exp2 logx expx");
     println!();
-    println!("   Output:             print or p                  # stack is unchanged!");
-    println!("   Output precision:   4 k                         # N.xxxx, redefineable, default and max 17 (K)");
+    println!("   Output:             print or p                       # stack is unchanged!");
+    println!(
+        "   Output frac. digit: 4 frdigit                        # N.xxxx, 0 auto, max 17 (K)"
+    );
     println!();
-    println!("   Subrutine:          : srname 10 4 p drop ;      # multiline is allowed.");
-    println!("   Call subrutine:     srname                      # as a normal command label");
+    println!("   Subroutine:         : srname 10 4 p drop ;           # multiline is allowed.");
+    println!("   Call subroutine:    srname                           # as a normal command label");
+    println!("   List subroutines:   dumpsr(dsr)                      # print first line");
     println!();
-    println!("   Relation:           5 4 > p                     # 1");
-    println!("   Loop:               10 [ 1 - p dup ]            # loop if not 0 before ']' and pop the result");
-    println!("   Loop:               10 [ 1 - p dup 5 > ]        # loop if greater than 5");
+    println!("   Relation:           5 4 > p                          # 1");
+    println!("   Loop:               10 [ 1 - p dup ]                 # loop if not 0 before ']' and pop the result");
+    println!("   Loop:               10 [ 1 - p dup 5 > ]             # loop if greater than 5");
     println!();
     println!("   Quit:               q quit bye exit");
     println!();
