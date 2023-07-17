@@ -15,7 +15,7 @@ Cmdline args: -q or --quiet, -f <filename> or --file <filename>, and -h or --hel
    Clear reg and vec:  NUM creg NUM vreg, clregs clvecs # hide on debug
    Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)
 
-   Literal:            3 4j                          # real or complex number
+   Literal:            3 4j                             # real or complex number
    Arithmetic:         + - * / abs
    Rounding:           floor ceil round
    Complex:            real imag r2c
@@ -25,15 +25,16 @@ Cmdline args: -q or --quiet, -f <filename> or --file <filename>, and -h or --hel
    Trigonometric(deg): sind, cosd, tand, asind, acosd, atand
    Logarithm:          loge expe log10 exp10 log2 exp2 logx expx
 
-   Output:             print or p                  # stack is unchanged!
-   Output precision:   4 k                         # N.xxxx, redefineable, default and max 17 (K)
+   Output:             print or p                       # stack is unchanged!
+   Output frac. digit: 4 frdigit                        # N.xxxx, 0 auto, max 17 (K)
 
-   Subrutine:          : srname 10 4 p drop ;      # multiline is allowed.
-   Call subrutine:     srname                      # as a normal command label
+   Subroutine:         : srname 10 4 p drop ;           # multiline is allowed.
+   Call subroutine:    srname                           # as a normal command label
+   List subroutines:   dumpsr(dsr)                      # print first line
 
-   Relation:           5 4 > p                     # 1
-   Loop:               10 [ 1 - p dup ]            # loop if not 0 before ']' and pop the result
-   Loop:               10 [ 1 - p dup 5 > ]        # loop if greater than 5
+   Relation:           5 4 > p                          # 1
+   Loop:               10 [ 1 - p dup ]                 # loop if not 0 before ']' and pop the result
+   Loop:               10 [ 1 - p dup 5 > ]             # loop if greater than 5
 
    Quit:               q quit bye exit
 ```
