@@ -616,11 +616,23 @@ impl Runner {
                         eprintln!("Stack is empty.");
                         break;
                     };
-                    if self.fractionaldigit > 0 {
-                        println!("{a:.*?}", self.fractionaldigit);
-                    } else {
-                        println!("{a:?}");
-                    }
+                    match a {
+                        StackType::Double(res) => {
+                            if self.fractionaldigit > 0 {
+                                println!("Result: {res:.*?}", self.fractionaldigit);
+                            } else {
+                                println!("Result: {res:?}");
+                            }
+                        }
+                        StackType::Complex(res) => {
+                            if self.fractionaldigit > 0 {
+                                println!("Result: {res:.*?}", self.fractionaldigit);
+                            } else {
+                                println!("Result: {res:?}");
+                            }
+                        }
+                        _ => (),
+                    };
                 }
 
                 Instruction::Quit => {
