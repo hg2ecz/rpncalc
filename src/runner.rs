@@ -27,6 +27,8 @@ pub struct Runner {
     vectors: Vec<VectorType>,
     verbose: bool,
     stopped: Arc<AtomicBool>,
+
+    accumulator: StackType,
 }
 
 impl Runner {
@@ -56,6 +58,8 @@ impl Runner {
             vectors,
             verbose,
             stopped,
+
+            accumulator: StackType::None,
         }
     }
 
@@ -71,9 +75,59 @@ impl Runner {
         self.pc = self.prog.len();
     }
 
-    // Internal func
-    fn get_double(&mut self) -> Option<f64> {
-        let Some(a) = self.stack.pop() else {
+    // Accu functions: last_get last_set pop push
+    fn accu_last_get(&self) -> Option<&StackType> {
+        if !self.stack.is_empty() {
+            Some(&self.accumulator)
+        } else {
+            None
+        }
+    }
+
+    fn accu_pop(&mut self) -> Option<StackType> {
+        let accu = self.accumulator;
+        if let Some(a) = self.stack.pop() {
+            self.accumulator = a;
+            Some(accu)
+        } else {
+            None
+        }
+    }
+
+    // last
+    fn accu_last_set(&mut self, num: StackType) {
+        self.accumulator = num;
+    }
+
+    // error -> break
+    fn accu_push(&mut self, num: StackType) -> bool {
+        self.stack.push(self.accumulator);
+        self.accumulator = num;
+        if self.stack.len() >= MAX_STACK {
+            eprintln!(
+                "Stack is FULL ({} element)! Please clear it.",
+                self.stack.len()
+            );
+            true
+        } else {
+            false
+        }
+    }
+
+    fn double_pop(&mut self) -> Option<f64> {
+        let Some(a) = self.accu_pop() else {
+            eprintln!("Stack is empty!");
+            return None;
+        };
+        let StackType::Double(a) = a else {
+            eprintln!("Get double: type error (Complex)");
+            return None;
+        };
+        Some(a)
+    }
+
+    fn double_last(&mut self) -> Option<f64> {
+        let Some(&a) = self.accu_last_get() else {
             eprintln!("Stack is empty!");
             return None;
         };
@@ -86,20 +140,20 @@ impl Runner {
 
     // Internal func, return: Real:Real or Complex:Complex from any pair
     fn get_samenum(&mut self) -> Option<(StackType, StackType)> {
-        let (Some(a), Some(b)) = (self.stack.pop(), self.stack.pop()) else {
+        let (Some(a), Some(b)) = (self.accu_pop(), self.accu_last_get()) else {
             eprintln!("Stack empty!");
             return None;
         };
-        if let (StackType::Double(da), StackType::Double(db)) = (a, b) {
+        if let (StackType::Double(da), &StackType::Double(db)) = (a, b) {
             Some((StackType::Double(da), StackType::Double(db)))
-        } else if let (StackType::Complex(da), StackType::Complex(db)) = (a, b) {
+        } else if let (StackType::Complex(da), &StackType::Complex(db)) = (a, b) {
             Some((StackType::Complex(da), StackType::Complex(db)))
-        } else if let (StackType::Double(da), StackType::Complex(db)) = (a, b) {
+        } else if let (StackType::Double(da), &StackType::Complex(db)) = (a, b) {
             Some((
                 StackType::Complex(Complex::new(da, 0.0)),
                 StackType::Complex(db),
             ))
-        } else if let (StackType::Complex(da), StackType::Double(db)) = (a, b) {
+        } else if let (StackType::Complex(da), &StackType::Double(db)) = (a, b) {
             Some((
                 StackType::Complex(da),
                 StackType::Complex(Complex::new(db, 0.0)),
@@ -111,6 +165,7 @@ impl Runner {
     }
 
     pub fn run(&mut self, add_instr: &[Instruction]) {
+        let mut err = false;
         for i in add_instr {
             self.prog.push(*i);
         }
@@ -119,16 +174,7 @@ impl Runner {
                 println!("Debug: PC: {} Instr: {:?}", self.pc, self.prog[self.pc]);
             }
             match self.prog[self.pc] {
-                Instruction::Literal(lit) => {
-                    self.stack.push(lit);
-                    if self.stack.len() >= MAX_STACK {
-                        eprintln!(
-                            "Stack is FULL ({} element)! Please clear it.",
-                            self.stack.len()
-                        );
-                        break;
-                    }
-                }
+                Instruction::Literal(lit) => err |= self.accu_push(lit),
                 Instruction::Call(addr) => {
                     self.ret_stack.push(self.pc);
                     self.pc = addr;
@@ -142,7 +188,7 @@ impl Runner {
                     self.pc = pc;
                 }
                 Instruction::Jnz(addr) => {
-                    let Some(a) = self.stack.pop() else {
+                    let Some(a) = self.accu_pop() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
@@ -157,11 +203,11 @@ impl Runner {
 
                 // Stack operations
                 Instruction::Dup => {
-                    let Some(a) = self.stack.last() else {
+                    let Some(&a) = self.accu_last_get() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
-                    self.stack.push(*a);
+                    self.stack.push(a);
                     if self.stack.len() >= MAX_STACK {
                         eprintln!(
                             "Stack is FULL ({} element)! Please clear it.",
@@ -171,34 +217,34 @@ impl Runner {
                     }
                 }
                 Instruction::Drop => {
-                    if self.stack.pop().is_none() {
+                    if self.accu_pop().is_none() {
                         eprintln!("Stack is empty!");
                         break;
                     }
                 }
                 Instruction::Over => {
-                    let Some(&a) = self.stack.get(self.stack.len() - 2) else {
+                    let Some(&a) = self.stack.get(self.stack.len() - 1) else {
                         eprintln!("Stack is empty!");
                         break;
                     };
-                    self.stack.push(a);
+                    err |= self.accu_push(a);
                 }
                 Instruction::Rot => {
-                    if let (Some(a), Some(b), Some(c)) =
-                        (self.stack.pop(), self.stack.pop(), self.stack.pop())
+                    if let (Some(a), Some(b), Some(_c)) =
+                        (self.accu_pop(), self.accu_pop(), self.accu_last_get())
                     {
                         self.stack.push(b);
                         self.stack.push(a);
-                        self.stack.push(c);
+                        // self.accu_push(c);
                     } else {
                         eprintln!("Stack is empty!");
                         break;
                     }
                 }
                 Instruction::Swap => {
-                    if let (Some(a), Some(b)) = (self.stack.pop(), self.stack.pop()) {
-                        self.stack.push(a);
-                        self.stack.push(b);
+                    if let Some(a) = self.accu_pop() {
+                        self.stack.push(a); // accu --> last
+                        // self.stack.push(b);
                     } else {
                         eprintln!("Stack is empty!");
                         break;
@@ -208,7 +254,11 @@ impl Runner {
                     self.stack.clear();
                 }
                 Instruction::DumpStack => {
-                    println!("Stack: {:?}", self.stack);
+                    if self.stack.is_empty() {
+                        println!("Stack is empty!");
+                    } else {
+                        println!("Stack: {:?}, {:?}", &self.stack[1..], self.accu_last_get());
+                    }
                 }
 
                 // Basic arithmetic
@@ -217,9 +267,9 @@ impl Runner {
                         break;
                     };
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
-                        self.stack.push(StackType::Double(b + a));
+                        self.accu_last_set(StackType::Double(b + a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
-                        self.stack.push(StackType::Complex(b + a));
+                        self.accu_last_set(StackType::Complex(b + a));
                     }
                 }
                 Instruction::Sub => {
@@ -227,9 +277,9 @@ impl Runner {
                         break;
                     };
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
-                        self.stack.push(StackType::Double(b - a));
+                        self.accu_last_set(StackType::Double(b - a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
-                        self.stack.push(StackType::Complex(b - a));
+                        self.accu_last_set(StackType::Complex(b - a));
                     }
                 }
                 Instruction::Mul => {
@@ -237,9 +287,9 @@ impl Runner {
                         break;
                     };
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
-                        self.stack.push(StackType::Double(b * a));
+                        self.accu_last_set(StackType::Double(b * a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
-                        self.stack.push(StackType::Complex(b * a));
+                        self.accu_last_set(StackType::Complex(b * a));
                     }
                 }
                 Instruction::Div => {
@@ -247,201 +297,227 @@ impl Runner {
                         break;
                     };
                     if let (StackType::Double(a), StackType::Double(b)) = (a, b) {
-                        self.stack.push(StackType::Double(b / a));
+                        self.accu_last_set(StackType::Double(b / a));
                     } else if let (StackType::Complex(a), StackType::Complex(b)) = (a, b) {
-                        self.stack.push(StackType::Complex(b / a));
+                        self.accu_last_set(StackType::Complex(b / a));
                     }
                 }
                 Instruction::And => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack
-                        .push(StackType::Double((b as u32 & a as u32) as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double((b as u32 & a as u32) as f64));
                 }
                 Instruction::Or => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack
-                        .push(StackType::Double((b as u32 | a as u32) as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double((b as u32 | a as u32) as f64));
                 }
                 Instruction::Xor => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack
-                        .push(StackType::Double((b as u32 ^ a as u32) as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double((b as u32 ^ a as u32) as f64));
                 }
                 Instruction::Neg => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack
-                        .push(StackType::Double((a as u32 ^ 0xffff_ffff) as f64));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double((a as u32 ^ 0xffff_ffff) as f64));
                 }
                 Instruction::Shl => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack
-                        .push(StackType::Double(((b as u32) << a as u32) as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(((b as u32) << a as u32) as f64));
                 }
                 Instruction::Shr => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack
-                        .push(StackType::Double(((b as u32) >> a as u32) as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(((b as u32) >> a as u32) as f64));
                 }
                 Instruction::Abs => {
-                    let Some(a) = self.stack.pop() else { break };
+                    let Some(a) = self.accu_last_get() else { break };
                     if let StackType::Double(a) = a {
-                        self.stack.push(StackType::Double(a.abs()));
+                        self.accu_last_set(StackType::Double(a.abs()));
                     } else if let StackType::Complex(a) = a {
-                        self.stack.push(StackType::Double(a.norm()));
+                        self.accu_last_set(StackType::Double(a.norm()));
                     }
                 }
                 Instruction::Floor => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.floor()));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(a.floor()));
                 }
                 Instruction::Ceil => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.ceil()));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(a.ceil()));
                 }
                 Instruction::Round => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.round()));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(a.round()));
                 }
 
                 // Trigonometric function
                 Instruction::CosR => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.cos()));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(a.cos()));
                 }
                 Instruction::SinR => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.sin()));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(a.sin()));
                 }
                 Instruction::TanR => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.tan()));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(a.tan()));
                 }
                 Instruction::CosD => {
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
                     let a = a / 180. * std::f64::consts::PI;
-                    self.stack.push(StackType::Double(a.cos()));
+                    self.accu_last_set(StackType::Double(a.cos()));
                 }
                 Instruction::SinD => {
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
                     let a = a / 180. * std::f64::consts::PI;
-                    self.stack.push(StackType::Double(a.sin()));
+                    self.accu_last_set(StackType::Double(a.sin()));
                 }
                 Instruction::TanD => {
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
                     let a = a / 180. * std::f64::consts::PI;
-                    self.stack.push(StackType::Double(a.tan()));
+                    self.accu_last_set(StackType::Double(a.tan()));
                 }
                 Instruction::AcosR => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.acos()));
+                    let Some(a) = self.double_last() else {
+                        break;
+                    };
+                    self.accu_last_set(StackType::Double(a.acos()));
                 }
                 Instruction::AsinR => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.asin()));
+                    let Some(a) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(a.asin()));
                 }
                 Instruction::AtanR => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.atan()));
+                    let Some(a) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(a.atan()));
                 }
                 Instruction::AcosD => {
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_last() else { break };
                     let a = a.acos() * 180. / std::f64::consts::PI;
-                    self.stack.push(StackType::Double(a));
+                    self.accu_last_set(StackType::Double(a));
                 }
                 Instruction::AsinD => {
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_last() else { break };
                     let a = a.asin() * 180. / std::f64::consts::PI;
-                    self.stack.push(StackType::Double(a));
+                    self.accu_last_set(StackType::Double(a));
                 }
                 Instruction::AtanD => {
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_last() else { break };
                     let a = a.atan() * 180. / std::f64::consts::PI;
-                    self.stack.push(StackType::Double(a));
+                    self.accu_last_set(StackType::Double(a));
                 }
                 // Logarithm and exponential
                 Instruction::Loge => {
-                    let Some(a) = self.stack.pop() else {
+                    let Some(a) = self.accu_last_get() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
                     match a {
-                        StackType::Double(aa) => self.stack.push(StackType::Double(aa.ln())),
-                        StackType::Complex(aa) => self.stack.push(StackType::Complex(aa.ln())),
+                        StackType::Double(aa) => err |= self.accu_push(StackType::Double(aa.ln())),
+                        StackType::Complex(aa) => self.accu_last_set(StackType::Complex(aa.ln())),
                         _ => eprintln!("Loge type error."),
                     }
                 }
                 Instruction::Log2 => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.log2()));
+                    let Some(a) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(a.log2()));
                 }
                 Instruction::Log10 => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.log10()));
+                    let Some(a) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(a.log10()));
                 }
                 Instruction::Logx => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(b.ln() / a.ln()));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(b.ln() / a.ln()));
                 }
 
                 Instruction::Expe => {
-                    let Some(a) = self.stack.pop() else {
+                    let Some(a) = self.accu_last_get() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
                     match a {
-                        StackType::Double(aa) => self.stack.push(StackType::Double(aa.exp())),
-                        StackType::Complex(aa) => self.stack.push(StackType::Complex(aa.exp())),
+                        StackType::Double(aa) => self.accu_last_set(StackType::Double(aa.exp())),
+                        StackType::Complex(aa) => self.accu_last_set(StackType::Complex(aa.exp())),
                         _ => eprintln!("Exp type error."),
                     }
                 }
                 Instruction::Exp2 => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(a.exp2()));
+                    let Some(a) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(a.exp2()));
                 }
                 Instruction::Exp10 => {
-                    let Some(a) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(10_f64.powf(a)));
+                    let Some(a) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(10_f64.powf(a)));
                 }
                 Instruction::Expx => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack.push(StackType::Double(b.powf(a)));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double(b.powf(a)));
                 }
                 Instruction::Gt => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack.push(StackType::Double((b > a) as i32 as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double((b > a) as i32 as f64));
                 }
                 Instruction::Lt => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack.push(StackType::Double((b < a) as i32 as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double((b < a) as i32 as f64));
                 }
                 Instruction::Ge => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack.push(StackType::Double((b >= a) as i32 as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double((b >= a) as i32 as f64));
                 }
                 Instruction::Le => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack.push(StackType::Double((b <= a) as i32 as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double((b <= a) as i32 as f64));
                 }
                 Instruction::Eq => {
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.get_double() else { break };
-                    self.stack.push(StackType::Double((b == a) as i32 as f64));
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.double_last() else { break };
+                    self.accu_last_set(StackType::Double((b == a) as i32 as f64));
                 }
 
                 // Complex
                 Instruction::Real => {
-                    let Some(a) = self.stack.pop() else {
+                    let Some(a) = self.accu_last_get() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
@@ -449,10 +525,10 @@ impl Runner {
                         eprintln!("This program compute trigonometric value only with Double, not Complex.");
                         break;
                     };
-                    self.stack.push(StackType::Double(a.re));
+                    self.accu_last_set(StackType::Double(a.re));
                 }
                 Instruction::Imag => {
-                    let Some(a) = self.stack.pop() else {
+                    let Some(a) = self.accu_last_get() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
@@ -460,10 +536,10 @@ impl Runner {
                         eprintln!("This program compute trigonometric value only with Double, not Complex.");
                         break;
                     };
-                    self.stack.push(StackType::Double(a.im));
+                    self.accu_last_set(StackType::Double(a.im));
                 }
                 Instruction::R2c => {
-                    let (Some(a), Some(b)) = (self.stack.pop(), self.stack.pop()) else {
+                    let (Some(a), Some(&b)) = (self.accu_pop(), self.accu_last_get()) else {
                         eprintln!("Stack is empty!");
                         break;
                     };
@@ -471,26 +547,19 @@ impl Runner {
                         eprintln!("Numbers are not real!");
                         break;
                     };
-                    self.stack.push(StackType::Complex(Complex::new(b, a)));
+                    self.accu_last_set(StackType::Complex(Complex::new(b, a)));
                 }
 
                 // Registers
                 Instruction::Save(regnum) => {
-                    let Some(x) = self.stack.pop() else {
+                    let Some(x) = self.accu_pop() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
                     self.registers[regnum as usize] = x;
                 }
                 Instruction::Load(regnum) => {
-                    self.stack.push(self.registers[regnum as usize]);
-                    if self.stack.len() >= MAX_STACK {
-                        eprintln!(
-                            "Stack is FULL ({} element)! Please clear it.",
-                            self.stack.len()
-                        );
-                        break;
-                    }
+                    err |= self.accu_push(self.registers[regnum as usize]);
                 }
                 Instruction::Creg(regnum) => {
                     self.registers[regnum as usize] = StackType::None;
@@ -517,20 +586,20 @@ impl Runner {
                 // Vectors
                 Instruction::Vreal(regnum) => {
                     // vector create complex - with LEN
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_pop() else { break };
                     self.vectors[regnum as usize].data_type = Type::Double;
                     self.vectors[regnum as usize].vector = vec![0.0; a as usize];
                 }
                 Instruction::Vcplx(regnum) => {
                     // vector create complex - with LEN
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_pop() else { break };
                     self.vectors[regnum as usize].data_type = Type::Complex;
                     self.vectors[regnum as usize].vector = vec![0.0; 2 * a as usize];
                 }
                 Instruction::Vsave(regnum) => {
                     // vsaveX
-                    let Some(a) = self.get_double() else { break };
-                    let Some(b) = self.stack.pop() else {
+                    let Some(a) = self.double_pop() else { break };
+                    let Some(b) = self.accu_pop() else {
                         eprintln!("Stack empty");
                         break;
                     };
@@ -555,24 +624,17 @@ impl Runner {
                 }
                 Instruction::Vload(regnum) => {
                     // vloadX
-                    let Some(a) = self.get_double() else { break };
+                    let Some(a) = self.double_last() else { break };
                     if self.vectors[regnum as usize].data_type == Type::Double {
-                        self.stack.push(StackType::Double(
+                        self.accu_last_set(StackType::Double(
                             self.vectors[regnum as usize].vector[a as usize],
                         ));
                     } else {
                         // Complex
-                        self.stack.push(StackType::Complex(Complex::new(
+                        self.accu_last_set(StackType::Complex(Complex::new(
                             self.vectors[regnum as usize].vector[2 * a as usize],
                             self.vectors[regnum as usize].vector[2 * a as usize + 1],
                         )));
-                    }
-                    if self.stack.len() >= MAX_STACK {
-                        eprintln!(
-                            "Stack is FULL ({} element)! Please clear it.",
-                            self.stack.len()
-                        );
-                        break;
                     }
                 }
                 Instruction::Cvec(regnum) => {
@@ -603,7 +665,7 @@ impl Runner {
 
                 // Print and related
                 Instruction::FractionalDigit => {
-                    let Some(StackType::Double(a)) = self.stack.pop() else {
+                    let Some(StackType::Double(a)) = self.accu_pop() else {
                         eprintln!("FractionalDigit");
                         break;
                     };
@@ -612,7 +674,7 @@ impl Runner {
                     }
                 }
                 Instruction::Print => {
-                    let Some(a) = self.stack.last() else {
+                    let Some(a) = self.accu_last_get() else {
                         eprintln!("Stack is empty.");
                         break;
                     };
@@ -641,6 +703,9 @@ impl Runner {
                 }
             } // match
             self.pc += 1;
+            if err {
+                break;
+            }
         } // while
           // if breaked, drop the remaining part of the program
         if self.pc < self.prog.len() {
