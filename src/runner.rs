@@ -75,31 +75,30 @@ impl Runner {
         self.pc = self.prog.len();
     }
 
-    // Accu functions: last_get last_set pop push
+    // If you want work only top of the stack, it is in a work register
     fn accu_last_get(&self) -> Option<&StackType> {
         if !self.stack.is_empty() {
             Some(&self.accumulator)
         } else {
+            eprintln!("Stack is empty!");
             None
         }
     }
+    fn accu_last_set(&mut self, num: StackType) {
+        self.accumulator = num;
+    }
 
+    // More stack element -> stack to workreg
     fn accu_pop(&mut self) -> Option<StackType> {
         let accu = self.accumulator;
         if let Some(a) = self.stack.pop() {
             self.accumulator = a;
             Some(accu)
         } else {
+            eprintln!("Stack is empty!");
             None
         }
     }
-
-    // last
-    fn accu_last_set(&mut self, num: StackType) {
-        self.accumulator = num;
-    }
-
-    // error -> break
     fn accu_push(&mut self, num: StackType) -> bool {
         self.stack.push(self.accumulator);
         self.accumulator = num;
@@ -108,15 +107,14 @@ impl Runner {
                 "Stack is FULL ({} element)! Please clear it.",
                 self.stack.len()
             );
-            true
+            true // stack overflow error
         } else {
-            false
+            false // no error
         }
     }
 
     fn double_pop(&mut self) -> Option<f64> {
         let Some(a) = self.accu_pop() else {
-            eprintln!("Stack is empty!");
             return None;
         };
         let StackType::Double(a) = a else {
@@ -128,7 +126,6 @@ impl Runner {
 
     fn double_last(&mut self) -> Option<f64> {
         let Some(&a) = self.accu_last_get() else {
-            eprintln!("Stack is empty!");
             return None;
         };
         let StackType::Double(a) = a else {
@@ -244,7 +241,7 @@ impl Runner {
                 Instruction::Swap => {
                     if let Some(a) = self.accu_pop() {
                         self.stack.push(a); // accu --> last
-                        // self.stack.push(b);
+                                            // self.stack.push(b);
                     } else {
                         eprintln!("Stack is empty!");
                         break;
