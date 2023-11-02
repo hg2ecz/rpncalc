@@ -1,16 +1,6 @@
-use num_complex::Complex;
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum StackType {
-    Double(f64),
-    Complex(Complex<f64>),
-    //Str(&str),
-    None,
-}
-
 #[derive(Debug, Copy, Clone)]
 pub enum Instruction {
-    Literal(StackType),
+    Literal(f64),
     Call(usize), // ":"
     Ret,         // ";"
     Jnz(usize),  // "]", jump back
@@ -63,21 +53,21 @@ pub enum Instruction {
     Ge,    // ">="
     Le,    // "<="
     Eq,    // "="
-
-    Real, // "real"
-    Imag, // "imag"
-    R2c,  // "r2c"
-
+    /*
+        Real, // "real"
+        Imag, // "imag"
+        R2c,  // "r2c"
+    */
     // Registers
     Save(u8), // RNUM + "save"
     Load(u8), // RNUM + "load"
-    Creg(u8), // RNUM + "creg"
-    Clregs,   // "clregs"
-    DumpReg,  // "dumpreg" | "dr"
+    //    Creg(u8), // RNUM + "creg"
+    //    Clregs,   // "clregs"
+    DumpReg, // "dumpreg" | "dr"
 
     // Vectors
     Vreal(u8), // VNUM + "vreal"
-    Vcplx(u8), // VNUM + "vcplx"
+    //    Vcplx(u8), // VNUM + "vcplx"
     Vsave(u8), // VNUM + "vsave"
     Vload(u8), // VNUM + "vload"
     Cvec(u8),  // VNUM + "cvec"
@@ -92,7 +82,7 @@ pub enum Instruction {
 }
 
 pub fn help() {
-    println!("RPN complex calculator, inspired by the FORTH, gforth and dc commands.");
+    println!("RPN >>REAL ONLY<< calculator, inspired by the FORTH, gforth and dc commands.");
     println!("Cmdline args: -q or --quiet, -f <filename> or --file <filename>, and -h or --help");
     println!();
     println!("   Basic example:      10 6 4 - / p                     # p as print, 6 - 4 --> 2    10 / 2 = 5");
@@ -100,15 +90,13 @@ pub fn help() {
     println!("   Stack operation:    dup drop over rot swap clear");
     println!("   Stack <--> Reg:     RNUM save load creg              # registernumber is 8 bit");
     println!("   Stack <--> Vector:  VNUM vsave vload cvec            # VNUM is 8 bit");
-    println!("   Create a vector:    LEN VNUM vreal or vcplx          # VNUM is 8 bit");
+    println!("   Create a vector:    LEN VNUM vreal                   # VNUM is 8 bit");
     println!();
-    println!("   Clear reg and vec:  NUM creg NUM vreg, clregs clvecs # hide on debug");
+    println!("   Clear reg and vec:  NUM creg NUM vreg                # hide on debug");
     println!("   Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)");
     println!();
-    println!("   Literal:            3 4j                             # real or complex number");
     println!("   Arithmetic:         + - * / abs");
     println!("   Rounding:           floor ceil round");
-    println!("   Complex:            real imag r2c");
     println!("   Logical:            and or xor neg, N shl N shr");
     println!();
     println!("   Trigonometric(rad): sinr, cosr, tanr, asinr, acosr, atanr");

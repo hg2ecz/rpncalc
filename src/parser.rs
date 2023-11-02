@@ -1,39 +1,40 @@
-use crate::instructions::{help, Instruction, StackType};
-use crate::runner::Runner;
-use num_complex::Complex;
+use crate::instructions::{help, Instruction};
+use crate::runner::RealRunner;
 use std::collections::HashMap;
 
 pub struct Parser {
     verbose: bool,
-    runner: Runner,
+    runner: RealRunner,
     instructions: Vec<Instruction>,
-    last_number: StackType,                          // for real, imag
     procedure_lut: HashMap<String, (usize, String)>, // for the parser and print description
     procedure_state: u8,
     loop_addr: Vec<usize>,
+    complex_mode: bool,
 }
 
 impl Parser {
     pub fn new(verbose: bool) -> Self {
         Parser {
             verbose,
-            runner: Runner::new(verbose),
+            runner: RealRunner::new(verbose),
             instructions: vec![],
 
-            last_number: StackType::None,
             procedure_lut: HashMap::new(),
             procedure_state: 0,
             loop_addr: vec![],
+            complex_mode: false,
         }
     }
 
     fn get_reg(&mut self) -> Option<u8> {
-        let StackType::Double(a) = self.last_number else {
+        if let Some(Instruction::Literal(a)) = self.instructions.last() {
+            let ret = Some(*a as u8);
+            let _ = self.instructions.pop();
+            ret
+        } else {
             eprintln!("Register number needed before this instruction.");
-            return None;
-        };
-        self.last_number = StackType::None;
-        Some(a as u8)
+            None
+        }
     }
 
     pub fn parse_line(&mut self, line: &str) {
@@ -41,7 +42,6 @@ impl Parser {
             if self.verbose {
                 println!("Debug: parser token: {token}");
             }
-            let mut last_command_not_parse_double = true;
             match token {
                 // Stack operations
                 "dup" => self.instructions.push(Instruction::Dup),
@@ -98,10 +98,11 @@ impl Parser {
                 "=" => self.instructions.push(Instruction::Eq),
 
                 // Complex
-                "real" => self.instructions.push(Instruction::Real),
-                "imag" => self.instructions.push(Instruction::Imag),
-                "r2c" => self.instructions.push(Instruction::R2c),
-
+                /*
+                        "real" => self.instructions.push(Instruction::Real),
+                        "imag" => self.instructions.push(Instruction::Imag),
+                        "r2c" => self.instructions.push(Instruction::R2c),
+                */
                 // Print and related
                 "frdigit" => self.instructions.push(Instruction::FractionalDigit),
                 "p" | "print" => self.instructions.push(Instruction::Print),
@@ -115,11 +116,13 @@ impl Parser {
                     let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Load(reg));
                 }
-                "creg" => {
-                    let Some(reg) = self.get_reg() else { break };
-                    self.instructions.push(Instruction::Creg(reg));
-                }
-                "clregs" => self.instructions.push(Instruction::Clregs),
+                /*
+                        "creg" => {
+                            let Some(reg) = self.get_reg() else { break };
+                            self.instructions.push(Instruction::Creg(reg));
+                        }
+                        "clregs" => self.instructions.push(Instruction::Clregs),
+                */
                 "dumpreg" | "dr" => self.instructions.push(Instruction::DumpReg),
 
                 // Vector
@@ -127,10 +130,12 @@ impl Parser {
                     let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Vreal(reg));
                 }
-                "vcplx" => {
-                    let Some(reg) = self.get_reg() else { break };
-                    self.instructions.push(Instruction::Vcplx(reg));
-                }
+                /*
+                        "vcplx" => {
+                            let Some(reg) = self.get_reg() else { break };
+                            self.instructions.push(Instruction::Vcplx(reg));
+                        }
+                */
                 "vsave" => {
                     let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Vsave(reg));
@@ -170,6 +175,20 @@ impl Parser {
                     .instructions
                     .push(Instruction::Jnz(self.loop_addr.pop().unwrap())),
 
+                "realmode" | "rm" => {
+                    if self.procedure_state == 0 {
+                        self.complex_mode = false
+                    } else {
+                        eprintln!("Cannot change in procedure!");
+                    }
+                }
+                "complexmode" | "cm" => {
+                    if self.procedure_state == 0 {
+                        self.complex_mode = true
+                    } else {
+                        eprintln!("Cannot change in procedure!");
+                    }
+                }
                 // Interpreter direct func
                 "help" => {
                     help();
@@ -191,57 +210,16 @@ impl Parser {
                         // token -> call subrutin
                         self.instructions.push(Instruction::Call(*call_ptr));
                     } else if token.as_bytes()[0].is_ascii_digit() || token.as_bytes()[0] == b'-' {
-                        // Possible number (real or imag).
-                        // Imag check --> 4.32j
-                        if token.as_bytes().last().unwrap() == &b'j' {
-                            let t2 = &token[0..token.len() - 1];
-                            let Ok(imag) = t2.parse::<f64>() else {
-                                eprintln!("Number error");
-                                break;
-                            };
-                            // if prevous was a normal Double, it is the real part of complex.
-                            let cmplx = if let StackType::Double(a) = self.last_number {
-                                Complex::new(a, imag)
-                            } else {
-                                Complex::new(0.0, imag)
-                            };
-                            self.instructions
-                                .push(Instruction::Literal(StackType::Complex(cmplx)));
-                            self.last_number = StackType::None;
-                        } else {
-                            // Double or real part ... if prevous was a normal Double, write
-                            if let StackType::Double(a) = self.last_number {
-                                self.instructions
-                                    .push(Instruction::Literal(StackType::Double(a)));
-                            }
-                            let Ok(number) = token.parse::<f64>() else {
-                                eprintln!("Number error");
-                                break;
-                            };
-                            self.last_number = StackType::Double(number);
-                            last_command_not_parse_double = false;
-                        }
+                        let Ok(number) = token.parse::<f64>() else {
+                            eprintln!("Number error");
+                            break;
+                        };
+                        self.instructions.push(Instruction::Literal(number));
                     } else {
                         eprintln!("Not a number, invalid command. Please type 'help'.");
                     }
                 }
             } // match
-
-            // if the number storeable - does not have imaginary part
-            if last_command_not_parse_double {
-                if let StackType::Double(_) = self.last_number {
-                    if !self.instructions.is_empty() {
-                        let last_instr = self.instructions.pop().unwrap();
-                        self.instructions
-                            .push(Instruction::Literal(self.last_number));
-                        self.instructions.push(last_instr);
-                    } else {
-                        self.instructions
-                            .push(Instruction::Literal(self.last_number));
-                    }
-                    self.last_number = StackType::None;
-                }
-            }
         } // for token
         if self.procedure_state == 0 && !self.instructions.is_empty() {
             self.runner.run(&self.instructions);
