@@ -63,9 +63,9 @@ impl RealRunner {
     fn accu_last(&self, accu_in: &f64) -> Option<f64> {
         if self.stack.is_empty() {
             eprintln!("Stack is empty!");
-            return None;
+            None
         } else {
-            return Some(*accu_in);
+            Some(*accu_in)
         }
     }
 
@@ -155,7 +155,7 @@ impl RealRunner {
                     }
                 }
                 Instruction::Over => {
-                    let Some(&a) = self.stack.get(self.stack.len() - 1) else {
+                    let Some(&a) = self.stack.last() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
