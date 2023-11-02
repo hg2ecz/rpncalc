@@ -79,9 +79,9 @@ impl Runner {
     fn accu_last(&self, accu_in: &StackType) -> Option<StackType> {
         if self.stack.is_empty() {
             eprintln!("Stack is empty!");
-            return None;
+            None
         } else {
-            return Some(*accu_in);
+            Some(*accu_in)
         }
     }
 
@@ -168,16 +168,18 @@ impl Runner {
         for i in add_instr {
             self.prog.push(*i);
         }
+
+        let mut spc = self.pc;
         let mut accu = self.accumulator;
-        while self.pc < self.prog.len() {
+        while spc < self.prog.len() {
             if self.verbose {
-                println!("Debug: PC: {} Instr: {:?}", self.pc, self.prog[self.pc]);
+                println!("Debug: PC: {} Instr: {:?}", spc, self.prog[spc]);
             }
-            match self.prog[self.pc] {
+            match self.prog[spc] {
                 Instruction::Literal(lit) => err |= self.accu_push(&mut accu, lit),
                 Instruction::Call(addr) => {
-                    self.ret_stack.push(self.pc);
-                    self.pc = addr;
+                    self.ret_stack.push(spc);
+                    spc = addr;
                     continue; // don't increment PC
                 }
                 Instruction::Ret => {
@@ -185,7 +187,7 @@ impl Runner {
                         eprintln!("Return stack is empty!");
                         break;
                     };
-                    self.pc = pc_ret;
+                    spc = pc_ret;
                 }
                 Instruction::Jnz(addr) => {
                     let Some(a) = self.accu_pop(&mut accu) else {
@@ -197,7 +199,7 @@ impl Runner {
                         eprintln!("Ctrl-C ... stop");
                         break;
                     } else if a != StackType::Double(0.0) {
-                        self.pc = addr;
+                        spc = addr;
                     }
                 }
 
@@ -222,23 +224,23 @@ impl Runner {
                     }
                 }
                 Instruction::Over => {
-                    let Some(&a) = self.stack.get(self.stack.len() - 1) else {
+                    let Some(&a) = self.stack.last() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
                     err |= self.accu_push(&mut accu, a);
                 }
                 Instruction::Rot => {
-                    if let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_pop(&mut accu))
-                    {
-                        //let Some(c) = self.accu_last(&accu) else { break };;
-                        self.stack.push(b);
-                        self.stack.push(a);
-                        // self.accu_push(&mut accu, c);
-                    } else {
-                        eprintln!("Stack is empty!");
+                    let Some(a) = self.accu_pop(&mut accu) else {
                         break;
-                    }
+                    };
+                    let Some(b) = self.accu_pop(&mut accu) else {
+                        break;
+                    };
+                    //let Some(c) = self.accu_last(&accu) else { break };;
+                    self.stack.push(b);
+                    self.stack.push(a);
+                    // self.accu_push(&mut accu, c);
                 }
                 Instruction::Swap => {
                     if let Some(a) = self.accu_pop(&mut accu) {
@@ -738,7 +740,10 @@ impl Runner {
                     }
                 }
                 Instruction::Print => {
-                    match accu {
+                    let Some(a) = self.accu_last(&accu) else {
+                        break;
+                    };
+                    match a {
                         StackType::Double(res) => {
                             if self.fractionaldigit > 0 {
                                 println!("Result: {res:.*?}", self.fractionaldigit);
@@ -762,15 +767,16 @@ impl Runner {
                     std::process::exit(0);
                 }
             } // match
-            self.pc += 1;
+            spc += 1;
             if err {
                 break;
             }
         } // while
           // if breaked, drop the remaining part of the program
-        if self.pc < self.prog.len() {
-            self.pc = self.prog.len();
+        if spc < self.prog.len() {
+            spc = self.prog.len();
         }
         self.accumulator = accu;
+        self.pc = spc;
     } // fn run
 } // Obj
