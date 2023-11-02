@@ -135,7 +135,6 @@ impl Runner {
     // Internal func, return: Real:Real or Complex:Complex from any pair
     fn get_samenum(&mut self, accu: &mut StackType) -> Option<(StackType, StackType)> {
         let Some(a) = self.accu_pop(accu) else {
-            eprintln!("Stack empty!");
             return None;
         };
         if self.stack.is_empty() {
