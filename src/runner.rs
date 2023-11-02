@@ -98,16 +98,18 @@ impl RealRunner {
         for i in add_instr {
             self.prog.push(*i);
         }
+
+        let mut spc = self.pc;
         let mut accu = self.accumulator;
-        while self.pc < self.prog.len() {
+        while spc < self.prog.len() {
             if self.verbose {
-                println!("Debug: PC: {} Instr: {:?}", self.pc, self.prog[self.pc]);
+                println!("Debug: PC: {} Instr: {:?}", spc, self.prog[spc]);
             }
-            match self.prog[self.pc] {
+            match self.prog[spc] {
                 Instruction::Literal(lit) => err |= self.accu_push(&mut accu, lit),
                 Instruction::Call(addr) => {
-                    self.ret_stack.push(self.pc);
-                    self.pc = addr;
+                    self.ret_stack.push(spc);
+                    spc = addr;
                     continue; // don't increment PC
                 }
                 Instruction::Ret => {
@@ -115,7 +117,7 @@ impl RealRunner {
                         eprintln!("RET: Return stack is empty!");
                         break;
                     };
-                    self.pc = pc_ret;
+                    spc = pc_ret;
                 }
                 Instruction::Jnz(addr) => {
                     let Some(a) = self.accu_pop(&mut accu) else {
@@ -127,7 +129,7 @@ impl RealRunner {
                         eprintln!("Ctrl-C ... stop");
                         break;
                     } else if a != 0.0 {
-                        self.pc = addr;
+                        spc = addr;
                         continue;
                     }
                 }
@@ -539,15 +541,16 @@ impl RealRunner {
                     std::process::exit(0);
                 }
             } // match
-            self.pc += 1;
+            spc += 1;
             if err {
                 break;
             }
         } // while
           // if breaked, drop the remaining part of the program
-        if self.pc < self.prog.len() {
-            self.pc = self.prog.len();
+        if spc < self.prog.len() {
+            spc = self.prog.len();
         }
         self.accumulator = accu;
+        self.pc = spc;
     } // fn run
 } // Obj
