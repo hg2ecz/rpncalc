@@ -1,13 +1,11 @@
-use crate::instructions::{help, Instruction, StackType};
+use crate::instructions::{help, Instruction};
 use crate::runner::Runner;
-use num_complex::Complex;
 use std::collections::HashMap;
 
 pub struct Parser {
     verbose: bool,
     runner: Runner,
     instructions: Vec<Instruction>,
-    last_number: StackType,                          // for real, imag
     procedure_lut: HashMap<String, (usize, String)>, // for the parser and print description
     procedure_state: u8,
     loop_addr: Vec<usize>,
@@ -20,7 +18,6 @@ impl Parser {
             runner: Runner::new(verbose),
             instructions: vec![],
 
-            last_number: StackType::None,
             procedure_lut: HashMap::new(),
             procedure_state: 0,
             loop_addr: vec![],
@@ -28,12 +25,14 @@ impl Parser {
     }
 
     fn get_reg(&mut self) -> Option<u8> {
-        let StackType::Double(a) = self.last_number else {
+        if let Some(Instruction::Literal(a)) = self.instructions.last() {
+            let ret = Some(*a as u8);
+            let _ = self.instructions.pop();
+            ret
+        } else {
             eprintln!("Register number needed before this instruction.");
-            return None;
-        };
-        self.last_number = StackType::None;
-        Some(a as u8)
+            None
+        }
     }
 
     pub fn parse_line(&mut self, line: &str) {
@@ -41,7 +40,6 @@ impl Parser {
             if self.verbose {
                 println!("Debug: parser token: {token}");
             }
-            let mut last_command_not_parse_double = true;
             match token {
                 // Stack operations
                 "dup" => self.instructions.push(Instruction::Dup),
@@ -97,11 +95,6 @@ impl Parser {
                 "<=" => self.instructions.push(Instruction::Le),
                 "=" => self.instructions.push(Instruction::Eq),
 
-                // Complex
-                "real" => self.instructions.push(Instruction::Real),
-                "imag" => self.instructions.push(Instruction::Imag),
-                "r2c" => self.instructions.push(Instruction::R2c),
-
                 // Print and related
                 "frdigit" => self.instructions.push(Instruction::FractionalDigit),
                 "p" | "print" => self.instructions.push(Instruction::Print),
@@ -115,21 +108,17 @@ impl Parser {
                     let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Load(reg));
                 }
-                "creg" => {
-                    let Some(reg) = self.get_reg() else { break };
-                    self.instructions.push(Instruction::Creg(reg));
-                }
-                "clregs" => self.instructions.push(Instruction::Clregs),
+                //"creg" => {
+                //    let Some(reg) = self.get_reg() else { break };
+                //    self.instructions.push(Instruction::Creg(reg));
+                //}
+                //"clregs" => self.instructions.push(Instruction::Clregs),
                 "dumpreg" | "dr" => self.instructions.push(Instruction::DumpReg),
 
                 // Vector
-                "vreal" => {
+                "vcreate" => {
                     let Some(reg) = self.get_reg() else { break };
-                    self.instructions.push(Instruction::Vreal(reg));
-                }
-                "vcplx" => {
-                    let Some(reg) = self.get_reg() else { break };
-                    self.instructions.push(Instruction::Vcplx(reg));
+                    self.instructions.push(Instruction::Vcreate(reg));
                 }
                 "vsave" => {
                     let Some(reg) = self.get_reg() else { break };
@@ -139,7 +128,7 @@ impl Parser {
                     let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Vload(reg));
                 }
-                "cvec" => {
+                "clvec" => {
                     let Some(reg) = self.get_reg() else { break };
                     self.instructions.push(Instruction::Cvec(reg));
                 }
@@ -170,6 +159,66 @@ impl Parser {
                     .instructions
                     .push(Instruction::Jnz(self.loop_addr.pop().unwrap())),
 
+                // Complex
+                "creal" => self.instructions.push(Instruction::CplxReal),
+                "cimag" => self.instructions.push(Instruction::CplxImag),
+                "r2c" => self.instructions.push(Instruction::CplxR2c),
+                "c2r" => self.instructions.push(Instruction::CplxC2r),
+
+                // Stack operations
+                "cdup" => self.instructions.push(Instruction::CplxDup),
+                "cdrop" => self.instructions.push(Instruction::CplxDrop),
+                "cover" => self.instructions.push(Instruction::CplxOver),
+                "crot" => self.instructions.push(Instruction::CplxRot),
+                "cswap" => self.instructions.push(Instruction::CplxSwap),
+                "cclear" => self.instructions.push(Instruction::CplxClear),
+                "cdumpstack" | "cds" => self.instructions.push(Instruction::CplxDumpStack),
+
+                // Basic arithmetic
+                "cadd" => self.instructions.push(Instruction::CplxAdd),
+                "csub" => self.instructions.push(Instruction::CplxSub),
+                "cmul" => self.instructions.push(Instruction::CplxMul),
+                "cdiv" => self.instructions.push(Instruction::CplxDiv),
+                "cabs" => self.instructions.push(Instruction::CplxAbs),
+
+                // Register
+                "csave" => {
+                    let Some(reg) = self.get_reg() else { break };
+                    self.instructions.push(Instruction::CplxSave(reg));
+                }
+                "cload" => {
+                    let Some(reg) = self.get_reg() else { break };
+                    self.instructions.push(Instruction::CplxLoad(reg));
+                }
+                //"creg" => {
+                //    let Some(reg) = self.get_reg() else { break };
+                //    self.instructions.push(Instruction::Creg(reg));
+                //}
+                //"clregs" => self.instructions.push(Instruction::Clregs),
+                "cdumpreg" | "cdr" => self.instructions.push(Instruction::CplxDumpReg),
+
+                // Vector
+                "cvcreate" => {
+                    let Some(reg) = self.get_reg() else { break };
+                    self.instructions.push(Instruction::CplxVcreate(reg));
+                }
+                "cvsave" => {
+                    let Some(reg) = self.get_reg() else { break };
+                    self.instructions.push(Instruction::CplxVsave(reg));
+                }
+                "cvload" => {
+                    let Some(reg) = self.get_reg() else { break };
+                    self.instructions.push(Instruction::CplxVload(reg));
+                }
+                "ccvec" => {
+                    let Some(reg) = self.get_reg() else { break };
+                    self.instructions.push(Instruction::CplxCvec(reg));
+                }
+                "cclvecs" => self.instructions.push(Instruction::CplxClvecs),
+                "cdumpvec" | "cdv" => self.instructions.push(Instruction::CplxDumpVec),
+
+                "cp" | "cprint" => self.instructions.push(Instruction::CplxPrint),
+
                 // Interpreter direct func
                 "help" => {
                     help();
@@ -191,57 +240,16 @@ impl Parser {
                         // token -> call subrutin
                         self.instructions.push(Instruction::Call(*call_ptr));
                     } else if token.as_bytes()[0].is_ascii_digit() || token.as_bytes()[0] == b'-' {
-                        // Possible number (real or imag).
-                        // Imag check --> 4.32j
-                        if token.as_bytes().last().unwrap() == &b'j' {
-                            let t2 = &token[0..token.len() - 1];
-                            let Ok(imag) = t2.parse::<f64>() else {
-                                eprintln!("Number error");
-                                break;
-                            };
-                            // if prevous was a normal Double, it is the real part of complex.
-                            let cmplx = if let StackType::Double(a) = self.last_number {
-                                Complex::new(a, imag)
-                            } else {
-                                Complex::new(0.0, imag)
-                            };
-                            self.instructions
-                                .push(Instruction::Literal(StackType::Complex(cmplx)));
-                            self.last_number = StackType::None;
-                        } else {
-                            // Double or real part ... if prevous was a normal Double, write
-                            if let StackType::Double(a) = self.last_number {
-                                self.instructions
-                                    .push(Instruction::Literal(StackType::Double(a)));
-                            }
-                            let Ok(number) = token.parse::<f64>() else {
-                                eprintln!("Number error");
-                                break;
-                            };
-                            self.last_number = StackType::Double(number);
-                            last_command_not_parse_double = false;
-                        }
+                        let Ok(number) = token.parse::<f64>() else {
+                            eprintln!("Number error");
+                            break;
+                        };
+                        self.instructions.push(Instruction::Literal(number));
                     } else {
                         eprintln!("Not a number, invalid command. Please type 'help'.");
                     }
                 }
             } // match
-
-            // if the number storeable - does not have imaginary part
-            if last_command_not_parse_double {
-                if let StackType::Double(_) = self.last_number {
-                    if !self.instructions.is_empty() {
-                        let last_instr = self.instructions.pop().unwrap();
-                        self.instructions
-                            .push(Instruction::Literal(self.last_number));
-                        self.instructions.push(last_instr);
-                    } else {
-                        self.instructions
-                            .push(Instruction::Literal(self.last_number));
-                    }
-                    self.last_number = StackType::None;
-                }
-            }
         } // for token
         if self.procedure_state == 0 && !self.instructions.is_empty() {
             self.runner.run(&self.instructions);

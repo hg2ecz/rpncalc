@@ -1,16 +1,6 @@
-use num_complex::Complex;
-
-#[derive(Debug, Copy, Clone, PartialEq)]
-pub enum StackType {
-    Double(f64),
-    Complex(Complex<f64>),
-    //Str(&str),
-    None,
-}
-
 #[derive(Debug, Copy, Clone)]
 pub enum Instruction {
-    Literal(StackType),
+    Literal(f64),
     Call(usize), // ":"
     Ret,         // ";"
     Jnz(usize),  // "]", jump back
@@ -64,29 +54,58 @@ pub enum Instruction {
     Le,    // "<="
     Eq,    // "="
 
-    Real, // "real"
-    Imag, // "imag"
-    R2c,  // "r2c"
-
     // Registers
     Save(u8), // RNUM + "save"
     Load(u8), // RNUM + "load"
-    Creg(u8), // RNUM + "creg"
-    Clregs,   // "clregs"
-    DumpReg,  // "dumpreg" | "dr"
+    //Clreg(u8), // RNUM + "creg"
+    //Clregs,   // "clregs"
+    DumpReg, // "dumpreg" | "dr"
 
     // Vectors
-    Vreal(u8), // VNUM + "vreal"
-    Vcplx(u8), // VNUM + "vcplx"
-    Vsave(u8), // VNUM + "vsave"
-    Vload(u8), // VNUM + "vload"
-    Cvec(u8),  // VNUM + "cvec"
-    Clvecs,    // "clvecs"
-    DumpVec,   // "dumpvec" | "dv"
+    Vcreate(u8), // VNUM + "vreal"
+    Vsave(u8),   // VNUM + "vsave"
+    Vload(u8),   // VNUM + "vload"
+    Cvec(u8),    // VNUM + "cvec"
+    Clvecs,      // "clvecs"
+    DumpVec,     // "dumpvec" | "dv"
 
     // Print
     FractionalDigit, // "frdigit" | "precision" => {
     Print,           // "p" | "print"
+
+    // === Complex ===
+    CplxReal, // "real" cf64 -> f64
+    CplxImag, // "imag" cf64 -> f64
+    CplxR2c,  // "r2c"  (f64, f64) -> cf64
+    CplxC2r,  // "c2r"  cf64 -> (f64, f64)
+
+    CplxDup,       // "dup"
+    CplxDrop,      // "drop"
+    CplxOver,      // "over"
+    CplxRot,       // "rot"
+    CplxSwap,      // "swap"
+    CplxClear,     // "clear"
+    CplxDumpStack, // "dumpstack" | "ds"
+
+    CplxAdd,
+    CplxSub,
+    CplxMul,
+    CplxDiv,
+    CplxAbs, // cf64 -> f64
+
+    CplxSave(u8),
+    CplxLoad(u8),
+    CplxDumpReg,
+
+    CplxVcreate(u8), // VNUM + "vreal"
+    CplxVsave(u8),   // VNUM + "vsave"
+    CplxVload(u8),   // VNUM + "vload"
+    CplxCvec(u8),    // VNUM + "cvec"
+    CplxClvecs,      // "clvecs"
+    CplxDumpVec,     // "dumpvec" | "dv"
+
+    CplxPrint,
+
     // Help,      // help() called in parser,
     Quit, // "quit" | "bye" | "exit" | "q"
 }
@@ -100,15 +119,14 @@ pub fn help() {
     println!("   Stack operation:    dup drop over rot swap clear");
     println!("   Stack <--> Reg:     RNUM save load creg              # registernumber is 8 bit");
     println!("   Stack <--> Vector:  VNUM vsave vload cvec            # VNUM is 8 bit");
-    println!("   Create a vector:    LEN VNUM vreal or vcplx          # VNUM is 8 bit");
+    println!("   Create a vector:    LEN VNUM vcreate                 # VNUM is 8 bit");
     println!();
-    println!("   Clear reg and vec:  NUM creg NUM vreg, clregs clvecs # hide on debug");
-    println!("   Debug:              dumpstack(ds), dumpreg(dr), dumpvec(dv)");
+    println!("   Clear reg and vec:  NUM cvec, clvecs");
+    println!("   Debug:              dumpstack or ds, dumpreg or dr, dumpvec or dv");
     println!();
     println!("   Literal:            3 4j                             # real or complex number");
     println!("   Arithmetic:         + - * / abs");
     println!("   Rounding:           floor ceil round");
-    println!("   Complex:            real imag r2c");
     println!("   Logical:            and or xor neg, N shl N shr");
     println!();
     println!("   Trigonometric(rad): sinr, cosr, tanr, asinr, acosr, atanr");
@@ -119,6 +137,19 @@ pub fn help() {
     println!(
         "   Output frac. digit: 4 frdigit                        # N.xxxx, 0 auto, max 17 (K)"
     );
+    println!();
+    println!("   Complex:            r2c cadd csub cdiv cabs r2c creal cimag");
+    println!("   Stack operation:    cdup cdrop cover crot cswap cclear");
+    println!("   Clear reg and vec:  NUM ccreg NUM cvreg, cclregs cclvecs # hide on debug");
+    println!(
+        "   Stack <--> Reg:     RNUM csave cload ccreg              # registernumber is 8 bit"
+    );
+    println!("   Stack <--> Vector:  VNUM cvsave cvload ccvec            # VNUM is 8 bit");
+    println!("   Create a vector:    LEN VNUM cvcreate                # VNUM is 8 bit");
+    println!("   Clear reg and vec:  NUM ccvec, cclvecs");
+    println!("   Debug:              cdumpstack or cds, cdumpreg or cdr, cdumpvec or cdv");
+    println!("   Output:             cprint or cp                     # stack is unchanged!");
+
     println!();
     println!("   Subroutine:         : srname 10 4 p drop ;           # multiline is allowed.");
     println!("   Call subroutine:    srname                           # as a normal command label");
