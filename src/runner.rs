@@ -587,7 +587,7 @@ impl Runner {
 
                 Instruction::CplxR2c => {
                     if let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) {
-                        self.cplx_stack.push(Complex::new(a, b));
+                        self.cplx_stack.push(Complex::new(b, a));
                     } else {
                         err = true;
                     }
@@ -595,6 +595,7 @@ impl Runner {
                 Instruction::CplxC2r => {
                     if let Some(a) = self.cplx_accu_pop() {
                         self.stack.push(a.re);
+                        self.stack.push(a.im);
                     } else {
                         err = true;
                     }
