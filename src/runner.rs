@@ -14,8 +14,6 @@ pub struct RealRunner {
     vectors: Vec<Vec<f64>>,
     verbose: bool,
     stopped: Arc<AtomicBool>,
-
-    accumulator: f64,
 }
 
 impl RealRunner {
@@ -42,8 +40,6 @@ impl RealRunner {
             vectors,
             verbose,
             stopped,
-
-            accumulator: 0.0,
         }
     }
 
@@ -59,29 +55,15 @@ impl RealRunner {
         self.pc = self.prog.len();
     }
 
-    // More stack element -> stack to workreg
-    fn accu_last(&self, accu_in: &f64) -> Option<f64> {
-        if self.stack.is_empty() {
-            eprintln!("Stack is empty!");
-            None
-        } else {
-            Some(*accu_in)
-        }
-    }
-
-    fn accu_pop(&mut self, accu_in: &mut f64) -> Option<f64> {
-        let accu = *accu_in;
+    fn accu_pop(&mut self) -> Option<f64> {
         if let Some(a) = self.stack.pop() {
-            *accu_in = a;
-            Some(accu)
+            Some(a)
         } else {
             eprintln!("Stack is empty!");
             None
         }
     }
-    fn accu_push(&mut self, accu_in: &mut f64, num: f64) -> bool {
-        self.stack.push(*accu_in);
-        *accu_in = num;
+    fn accu_push(&mut self, num: f64) -> bool {
         if self.stack.len() >= MAX_STACK {
             eprintln!(
                 "Stack is FULL ({} element)! Please clear it.",
@@ -89,6 +71,7 @@ impl RealRunner {
             );
             true // stack overflow error
         } else {
+            self.stack.push(num);
             false // no error
         }
     }
@@ -100,13 +83,12 @@ impl RealRunner {
         }
 
         let mut spc = self.pc;
-        let mut accu = self.accumulator;
         while spc < self.prog.len() {
             if self.verbose {
                 println!("Debug: PC: {} Instr: {:?}", spc, self.prog[spc]);
             }
             match self.prog[spc] {
-                Instruction::Literal(lit) => err |= self.accu_push(&mut accu, lit),
+                Instruction::Literal(lit) => err |= self.accu_push(lit),
                 Instruction::Call(addr) => {
                     self.ret_stack.push(spc);
                     spc = addr;
@@ -120,7 +102,7 @@ impl RealRunner {
                     spc = pc_ret;
                 }
                 Instruction::Jnz(addr) => {
-                    let Some(a) = self.accu_pop(&mut accu) else {
+                    let Some(a) = self.accu_pop() else {
                         eprintln!("JNZ: Stack is empty!");
                         break;
                     };
@@ -136,7 +118,8 @@ impl RealRunner {
 
                 // Stack operations
                 Instruction::Dup => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(&a) = self.stack.last() else {
+                        eprintln!("Stack is empty!");
                         break;
                     };
                     self.stack.push(a);
@@ -149,32 +132,32 @@ impl RealRunner {
                     }
                 }
                 Instruction::Drop => {
-                    if self.accu_pop(&mut accu).is_none() {
+                    if self.accu_pop().is_none() {
                         eprintln!("Stack is empty!");
                         break;
                     }
                 }
                 Instruction::Over => {
-                    let Some(&a) = self.stack.last() else {
+                    let Some(&a) = self.stack.get(self.stack.len() - 2) else {
                         eprintln!("Stack is empty!");
                         break;
                     };
-                    err |= self.accu_push(&mut accu, a);
+                    err |= self.accu_push(a);
                 }
                 Instruction::Rot => {
-                    if let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_pop(&mut accu))
+                    if let (Some(a), Some(b), Some(c)) =
+                        (self.accu_pop(), self.accu_pop(), self.accu_pop())
                     {
-                        //let Some(c) = self.accu_last(&accu) else { break };;
                         self.stack.push(b);
                         self.stack.push(a);
-                        // self.accu_push(&mut accu, c);
+                        self.stack.push(c);
                     } else {
                         eprintln!("Stack is empty!");
                         break;
                     }
                 }
                 Instruction::Swap => {
-                    if let Some(a) = self.accu_pop(&mut accu) {
+                    if let Some(a) = self.accu_pop() {
                         self.stack.push(a); // accu --> last
                                             // self.stack.push(b);
                     } else {
@@ -186,282 +169,262 @@ impl RealRunner {
                     self.stack.clear();
                 }
                 Instruction::DumpStack => {
-                    if self.stack.is_empty() {
-                        println!("Stack is empty!");
-                    } else {
-                        println!("Stack: {:?}, {:?}", &self.stack[1..], self.accu_last(&accu));
-                    }
+                    println!("Stack: {:?}", &self.stack);
                 }
 
                 // Basic arithmetic
                 Instruction::Add => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = b + a;
+                    self.accu_push(b + a);
                 }
                 Instruction::Sub => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = b - a;
+                    self.accu_push(b - a);
                 }
                 Instruction::Mul => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = b * a;
+                    self.accu_push(b * a);
                 }
                 Instruction::Div => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = b / a;
+                    self.accu_push(b / a);
                 }
                 Instruction::And => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b as u32 & a as u32) as f64;
+                    self.accu_push((b as u32 & a as u32) as f64);
                 }
                 Instruction::Or => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b as u32 | a as u32) as f64;
+                    self.accu_push((b as u32 | a as u32) as f64);
                 }
                 Instruction::Xor => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b as u32 ^ a as u32) as f64;
+                    self.accu_push((b as u32 ^ a as u32) as f64);
                 }
                 Instruction::Neg => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = (a as u32 ^ 0xffff_ffff) as f64;
+                    self.accu_push((a as u32 ^ 0xffff_ffff) as f64);
                 }
                 Instruction::Shl => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = ((b as u32) << a as u32) as f64;
+                    self.accu_push(((b as u32) << a as u32) as f64);
                 }
                 Instruction::Shr => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = ((b as u32) >> a as u32) as f64;
+                    self.accu_push(((b as u32) >> a as u32) as f64);
                 }
                 Instruction::Abs => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.abs();
+                    self.accu_push(a.abs());
                 }
                 Instruction::Floor => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.floor();
+                    self.accu_push(a.floor());
                 }
                 Instruction::Ceil => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.ceil();
+                    self.accu_push(a.ceil());
                 }
                 Instruction::Round => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.round();
+                    self.accu_push(a.round());
                 }
 
                 // Trigonometric function
                 Instruction::CosR => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.cos();
+                    self.accu_push(a.cos());
                 }
                 Instruction::SinR => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.sin();
+                    self.accu_push(a.sin());
                 }
                 Instruction::TanR => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.tan();
+                    self.accu_push(a.tan());
                 }
                 Instruction::CosD => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
                     let a = a / 180. * std::f64::consts::PI;
-                    accu = a.cos();
+                    self.accu_push(a.cos());
                 }
                 Instruction::SinD => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
                     let a = a / 180. * std::f64::consts::PI;
-                    accu = a.sin();
+                    self.accu_push(a.sin());
                 }
                 Instruction::TanD => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
                     let a = a / 180. * std::f64::consts::PI;
-                    accu = a.tan();
+                    self.accu_push(a.tan());
                 }
                 Instruction::AcosR => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.acos();
+                    self.accu_push(a.acos());
                 }
                 Instruction::AsinR => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.asin();
+                    self.accu_push(a.asin());
                 }
                 Instruction::AtanR => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.atan();
+                    self.accu_push(a.atan());
                 }
                 Instruction::AcosD => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.acos() * 180. / std::f64::consts::PI;
+                    self.accu_push(a.acos() * 180. / std::f64::consts::PI);
                 }
                 Instruction::AsinD => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.asin() * 180. / std::f64::consts::PI;
+                    self.accu_push(a.asin() * 180. / std::f64::consts::PI);
                 }
                 Instruction::AtanD => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.atan() * 180. / std::f64::consts::PI;
+                    self.accu_push(a.atan() * 180. / std::f64::consts::PI);
                 }
                 // Logarithm and exponential
                 Instruction::Loge => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.ln();
+                    self.accu_push(a.ln());
                 }
                 Instruction::Log2 => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.log2();
+                    self.accu_push(a.log2());
                 }
                 Instruction::Log10 => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.log10();
+                    self.accu_push(a.log10());
                 }
                 Instruction::Logx => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = b.ln() / a.ln();
+                    self.accu_push(b.ln() / a.ln());
                 }
 
                 Instruction::Expe => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.exp();
+                    self.accu_push(a.exp());
                 }
                 Instruction::Exp2 => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = a.exp2();
+                    self.accu_push(a.exp2());
                 }
                 Instruction::Exp10 => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = 10_f64.powf(a);
+                    self.accu_push(10_f64.powf(a));
                 }
                 Instruction::Expx => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = b.powf(a);
+                    self.accu_push(b.powf(a));
                 }
                 Instruction::Gt => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b > a) as i32 as f64;
+                    self.accu_push((b > a) as i32 as f64);
                 }
                 Instruction::Lt => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b < a) as i32 as f64;
+                    self.accu_push((b < a) as i32 as f64);
                 }
                 Instruction::Ge => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b >= a) as i32 as f64;
+                    self.accu_push((b >= a) as i32 as f64);
                 }
                 Instruction::Le => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b <= a) as i32 as f64;
+                    self.accu_push((b <= a) as i32 as f64);
                 }
                 Instruction::Eq => {
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_last(&accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    accu = (b == a) as i32 as f64;
+                    self.accu_push((b == a) as i32 as f64);
                 }
 
                 // Registers
                 Instruction::Save(regnum) => {
-                    let Some(x) = self.accu_pop(&mut accu) else {
+                    let Some(x) = self.accu_pop() else {
                         eprintln!("Stack is empty!");
                         break;
                     };
                     self.registers[regnum as usize] = x;
                 }
                 Instruction::Load(regnum) => {
-                    err |= self.accu_push(&mut accu, self.registers[regnum as usize]);
+                    err |= self.accu_push(self.registers[regnum as usize]);
                 }
                 Instruction::DumpReg => {
                     for (i, v) in self.registers.iter().enumerate() {
@@ -472,7 +435,7 @@ impl RealRunner {
                 // Vectors
                 Instruction::Vreal(regnum) => {
                     // vector create complex - with LEN
-                    let Some(a) = self.accu_pop(&mut accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
                     self.vectors[regnum as usize] = vec![0.0; a as usize];
@@ -480,18 +443,17 @@ impl RealRunner {
 
                 Instruction::Vsave(regnum) => {
                     // vsaveX
-                    let (Some(a), Some(b)) = (self.accu_pop(&mut accu), self.accu_pop(&mut accu))
-                    else {
+                    let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
                     self.vectors[regnum as usize][a as usize] = b;
                 }
                 Instruction::Vload(regnum) => {
                     // vloadX
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    accu = self.vectors[regnum as usize][a as usize];
+                    self.accu_push(self.vectors[regnum as usize][a as usize]);
                 }
                 Instruction::Cvec(regnum) => {
                     self.vectors[regnum as usize].clear();
@@ -517,7 +479,7 @@ impl RealRunner {
 
                 // Print and related
                 Instruction::FractionalDigit => {
-                    let Some(a) = self.accu_pop(&mut accu) else {
+                    let Some(a) = self.accu_pop() else {
                         eprintln!("FractionalDigit");
                         break;
                     };
@@ -526,7 +488,8 @@ impl RealRunner {
                     }
                 }
                 Instruction::Print => {
-                    let Some(a) = self.accu_last(&accu) else {
+                    let Some(a) = self.stack.last() else {
+                        eprintln!("Error: accu is empty!");
                         break;
                     };
                     if self.fractionaldigit > 0 {
@@ -550,7 +513,6 @@ impl RealRunner {
         if spc < self.prog.len() {
             spc = self.prog.len();
         }
-        self.accumulator = accu;
         self.pc = spc;
     } // fn run
 } // Obj
