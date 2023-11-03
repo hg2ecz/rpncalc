@@ -82,16 +82,15 @@ impl RealRunner {
             self.prog.push(*i);
         }
 
-        let mut spc = self.pc;
-        while spc < self.prog.len() {
+        while self.pc < self.prog.len() {
             if self.verbose {
-                println!("Debug: PC: {} Instr: {:?}", spc, self.prog[spc]);
+                println!("Debug: PC: {} Instr: {:?}", self.pc, self.prog[self.pc]);
             }
-            match self.prog[spc] {
+            match self.prog[self.pc] {
                 Instruction::Literal(lit) => err |= self.accu_push(lit),
                 Instruction::Call(addr) => {
-                    self.ret_stack.push(spc);
-                    spc = addr;
+                    self.ret_stack.push(self.pc);
+                    self.pc = addr;
                     continue; // don't increment PC
                 }
                 Instruction::Ret => {
@@ -99,11 +98,10 @@ impl RealRunner {
                         eprintln!("RET: Return stack is empty!");
                         break;
                     };
-                    spc = pc_ret;
+                    self.pc = pc_ret;
                 }
                 Instruction::Jnz(addr) => {
                     let Some(a) = self.accu_pop() else {
-                        eprintln!("JNZ: Stack is empty!");
                         break;
                     };
                     if self.stopped.load(Ordering::SeqCst) {
@@ -111,7 +109,7 @@ impl RealRunner {
                         eprintln!("Ctrl-C ... stop");
                         break;
                     } else if a != 0.0 {
-                        spc = addr;
+                        self.pc = addr;
                         continue;
                     }
                 }
@@ -122,20 +120,10 @@ impl RealRunner {
                         eprintln!("Stack is empty!");
                         break;
                     };
-                    self.stack.push(a);
-                    if self.stack.len() >= MAX_STACK {
-                        eprintln!(
-                            "Stack is FULL ({} element)! Please clear it.",
-                            self.stack.len()
-                        );
-                        break;
-                    }
+                    err |= self.accu_push(a); // check
                 }
                 Instruction::Drop => {
-                    if self.accu_pop().is_none() {
-                        eprintln!("Stack is empty!");
-                        break;
-                    }
+                    err |= self.accu_pop().is_none();
                 }
                 Instruction::Over => {
                     let Some(&a) = self.stack.get(self.stack.len() - 2) else {
@@ -152,16 +140,14 @@ impl RealRunner {
                         self.stack.push(a);
                         self.stack.push(c);
                     } else {
-                        eprintln!("Stack is empty!");
                         break;
                     }
                 }
                 Instruction::Swap => {
-                    if let Some(a) = self.accu_pop() {
-                        self.stack.push(a); // accu --> last
-                                            // self.stack.push(b);
+                    if let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) {
+                        self.stack.push(a);
+                        self.stack.push(b);
                     } else {
-                        eprintln!("Stack is empty!");
                         break;
                     }
                 }
@@ -177,85 +163,85 @@ impl RealRunner {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(b + a);
+                    self.stack.push(b + a);
                 }
                 Instruction::Sub => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(b - a);
+                    self.stack.push(b - a);
                 }
                 Instruction::Mul => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(b * a);
+                    self.stack.push(b * a);
                 }
                 Instruction::Div => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(b / a);
+                    self.stack.push(b / a);
                 }
                 Instruction::And => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b as u32 & a as u32) as f64);
+                    self.stack.push((b as u32 & a as u32) as f64);
                 }
                 Instruction::Or => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b as u32 | a as u32) as f64);
+                    self.stack.push((b as u32 | a as u32) as f64);
                 }
                 Instruction::Xor => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b as u32 ^ a as u32) as f64);
+                    self.stack.push((b as u32 ^ a as u32) as f64);
                 }
                 Instruction::Neg => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push((a as u32 ^ 0xffff_ffff) as f64);
+                    self.stack.push((a as u32 ^ 0xffff_ffff) as f64);
                 }
                 Instruction::Shl => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(((b as u32) << a as u32) as f64);
+                    self.stack.push(((b as u32) << a as u32) as f64);
                 }
                 Instruction::Shr => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(((b as u32) >> a as u32) as f64);
+                    self.stack.push(((b as u32) >> a as u32) as f64);
                 }
                 Instruction::Abs => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.abs());
+                    self.stack.push(a.abs());
                 }
                 Instruction::Floor => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.floor());
+                    self.stack.push(a.floor());
                 }
                 Instruction::Ceil => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.ceil());
+                    self.stack.push(a.ceil());
                 }
                 Instruction::Round => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.round());
+                    self.stack.push(a.round());
                 }
 
                 // Trigonometric function
@@ -263,156 +249,156 @@ impl RealRunner {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.cos());
+                    self.stack.push(a.cos());
                 }
                 Instruction::SinR => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.sin());
+                    self.stack.push(a.sin());
                 }
                 Instruction::TanR => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.tan());
+                    self.stack.push(a.tan());
                 }
                 Instruction::CosD => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
                     let a = a / 180. * std::f64::consts::PI;
-                    self.accu_push(a.cos());
+                    self.stack.push(a.cos());
                 }
                 Instruction::SinD => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
                     let a = a / 180. * std::f64::consts::PI;
-                    self.accu_push(a.sin());
+                    self.stack.push(a.sin());
                 }
                 Instruction::TanD => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
                     let a = a / 180. * std::f64::consts::PI;
-                    self.accu_push(a.tan());
+                    self.stack.push(a.tan());
                 }
                 Instruction::AcosR => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.acos());
+                    self.stack.push(a.acos());
                 }
                 Instruction::AsinR => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.asin());
+                    self.stack.push(a.asin());
                 }
                 Instruction::AtanR => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.atan());
+                    self.stack.push(a.atan());
                 }
                 Instruction::AcosD => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.acos() * 180. / std::f64::consts::PI);
+                    self.stack.push(a.acos() * 180. / std::f64::consts::PI);
                 }
                 Instruction::AsinD => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.asin() * 180. / std::f64::consts::PI);
+                    self.stack.push(a.asin() * 180. / std::f64::consts::PI);
                 }
                 Instruction::AtanD => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.atan() * 180. / std::f64::consts::PI);
+                    self.stack.push(a.atan() * 180. / std::f64::consts::PI);
                 }
                 // Logarithm and exponential
                 Instruction::Loge => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.ln());
+                    self.stack.push(a.ln());
                 }
                 Instruction::Log2 => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.log2());
+                    self.stack.push(a.log2());
                 }
                 Instruction::Log10 => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.log10());
+                    self.stack.push(a.log10());
                 }
                 Instruction::Logx => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(b.ln() / a.ln());
+                    self.stack.push(b.ln() / a.ln());
                 }
 
                 Instruction::Expe => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.exp());
+                    self.stack.push(a.exp());
                 }
                 Instruction::Exp2 => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(a.exp2());
+                    self.stack.push(a.exp2());
                 }
                 Instruction::Exp10 => {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(10_f64.powf(a));
+                    self.stack.push(10_f64.powf(a));
                 }
                 Instruction::Expx => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push(b.powf(a));
+                    self.stack.push(b.powf(a));
                 }
                 Instruction::Gt => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b > a) as i32 as f64);
+                    self.stack.push((b > a) as i32 as f64);
                 }
                 Instruction::Lt => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b < a) as i32 as f64);
+                    self.stack.push((b < a) as i32 as f64);
                 }
                 Instruction::Ge => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b >= a) as i32 as f64);
+                    self.stack.push((b >= a) as i32 as f64);
                 }
                 Instruction::Le => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b <= a) as i32 as f64);
+                    self.stack.push((b <= a) as i32 as f64);
                 }
                 Instruction::Eq => {
                     let (Some(a), Some(b)) = (self.accu_pop(), self.accu_pop()) else {
                         break;
                     };
-                    self.accu_push((b == a) as i32 as f64);
+                    self.stack.push((b == a) as i32 as f64);
                 }
 
                 // Registers
@@ -453,7 +439,7 @@ impl RealRunner {
                     let Some(a) = self.accu_pop() else {
                         break;
                     };
-                    self.accu_push(self.vectors[regnum as usize][a as usize]);
+                    err |= self.accu_push(self.vectors[regnum as usize][a as usize]);
                 }
                 Instruction::Cvec(regnum) => {
                     self.vectors[regnum as usize].clear();
@@ -504,15 +490,14 @@ impl RealRunner {
                     std::process::exit(0);
                 }
             } // match
-            spc += 1;
+            self.pc += 1;
             if err {
                 break;
             }
         } // while
           // if breaked, drop the remaining part of the program
-        if spc < self.prog.len() {
-            spc = self.prog.len();
+        if self.pc < self.prog.len() {
+            self.pc = self.prog.len();
         }
-        self.pc = spc;
     } // fn run
 } // Obj
