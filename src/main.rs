@@ -57,7 +57,7 @@ fn main() {
         }
     }
 
-    for line in io::stdin().lock().lines().flatten() {
+    for line in io::stdin().lock().lines().map_while(Result::ok) {
         p.parse_line(&line);
     }
 }
